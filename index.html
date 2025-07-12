@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <title>לוח שנה</title>
+  <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <h1>לוח שנה</h1>
+  <div id="calendar-legend"></div>
+  <div id="calendar"></div>
+
+  <div id="event-modal" class="hidden">
+    <div class="modal-content">
+      <button id="modal-close">x</button>
+      <h2 id="modal-title"></h2>
+      <p id="modal-time"></p>
+      <p id="modal-location"></p>
+
+      <div class="modal-field">
+        <label id="shift-label" for="shift-select">משמרת:</label>
+        <select id="shift-select" dir="rtl"></select>
+      </div>      
+
+      <pre id="modal-description"></pre>    
+
+      <div id="single-task-form">
+        <textarea id="new-desc" placeholder="משימה"></textarea>
+        <div id="task-input-controls">
+          <select id="new-stage">
+            <option>תחילה</option>
+            <option>אמצע</option>
+            <option>סוף</option>
+          </select>
+          <select id="new-priority">
+            <option>נמוך</option>
+            <option>רגיל</option>
+            <option>דחוף</option>
+          </select>
+          <button id="add-task-confirm">הוסף</button>
+        </div>
+      </div>        
+
+        <ul id="task-list"></ul>
+      
+
+    </div>
+  </div>
+  
+
+  <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js"></script>
+  <script src="scripts.js"></script>
+</body>
+</html>
