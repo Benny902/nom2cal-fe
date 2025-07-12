@@ -1,6 +1,7 @@
 console.log("Script loaded");
 
-const BASE_URL = 'http://localhost:5000';
+// const BASE_URL = 'http://localhost:5000'; // local backend
+const BASE_URL = 'https://nom2cal.onrender.com'; // live backend
 
 const calendarColors = {
   'הרצליה': '#f57c00',
