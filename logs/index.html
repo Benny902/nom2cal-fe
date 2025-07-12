@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <title>לוגים</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 40px;
+      background-color: #f5f5f5;
+    }
+
+    h1 {
+      text-align: center;
+      margin-bottom: 30px;
+      color: #333;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background-color: #fff;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+
+    th, td {
+      padding: 12px 15px;
+      border: 1px solid #ddd;
+      text-align: right;
+    }
+
+    th {
+      background-color: #4CAF50;
+      color: white;
+    }
+
+    tr:nth-child(even) {
+      background-color: #f2f2f2;
+    }
+  </style>
+</head>
+<body>
+  <h1>לוגים</h1>
+
+  <table id="log-table">
+    <thead>
+      <tr>
+        <th>תאריך</th>
+        <th>מזהה אירוע</th>
+        <th>פעולה</th>
+        <th>פרטים</th>
+      </tr>
+    </thead>
+    <tbody>
+      <!-- Logs will be inserted here dynamically -->
+    </tbody>
+  </table>
+
+  <script>
+    fetch('https://nom2cal.onrender.com/logs')
+      .then(response => response.json())
+      .then(data => {
+        const tbody = document.querySelector('#log-table tbody');
+        data.forEach(log => {
+          const row = document.createElement('tr');
+          row.innerHTML = `
+            <td>${log.timestamp}</td>
+            <td>${log.event_key}</td>
+            <td>${log.action}</td>
+            <td>${log.details}</td>
+          `;
+          tbody.appendChild(row);
+        });
+      })
+      .catch(error => {
+        console.error('שגיאה בעת טעינת הלוגים:', error);
+      });
+  </script>
+</body>
+</html>
