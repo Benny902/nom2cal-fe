@@ -218,3 +218,23 @@ body {
     cursor: pointer;
     font-size: 18px;
   }
+
+  .modal-field {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+    direction: ltr; /* flip layout direction to position items logically */
+  }
+  
+  .modal-field .field-group {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    direction: rtl; /* keep inner content Hebrew-friendly */
+  }
+  
+  .modal-field select {
+    max-width: 150px;
+  }
+  

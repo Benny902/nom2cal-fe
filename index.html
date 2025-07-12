@@ -17,13 +17,34 @@
       <h2 id="modal-title"></h2>
       <p id="modal-time"></p>
       <p id="modal-location"></p>
+      <pre id="modal-description"></pre>  
 
+      
       <div class="modal-field">
-        <label id="shift-label" for="shift-select">משמרת:</label>
-        <select id="shift-select" dir="rtl"></select>
-      </div>      
 
-      <pre id="modal-description"></pre>    
+        <div class="field-group">
+        <label id="shift-label" for="shift-select">עובד משמרת:</label>
+        <select id="shift-select" dir="rtl"></select>
+        </div>
+
+        <div class="field-group">
+        <label for="template-select">תבנית משימות:</label>
+        <select id="template-select" dir="rtl">
+          <option value="">— בחר תבנית —</option>
+          <option value="tasks1">תבנית 1</option>
+          <option value="tasks2">תבנית 2</option>
+          <option value="tasks3">תבנית 3</option>
+          <option value="tasks4">תבנית 4</option>
+          <option value="tasks5">תבנית 5</option>
+          <option value="tasks6">תבנית 6</option>
+          <option value="tasks7">תבנית 7</option>
+          <option value="tasks8">תבנית 8</option>
+          <option value="tasks9">תבנית 9</option>
+          <option value="tasks10">תבנית 10</option>
+        </select>
+      </div>
+
+      </div>        
 
       <div id="single-task-form">
         <textarea id="new-desc" placeholder="משימה"></textarea>
