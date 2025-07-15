@@ -98,7 +98,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
       const calendarEl = document.getElementById('calendar');
       calendar = new FullCalendar.Calendar(calendarEl, {
-        initialView: 'dayGridMonth',
+        initialView: 'timeGridWeek',
         locale: 'he',
         direction: 'rtl',
         height: 'auto',
