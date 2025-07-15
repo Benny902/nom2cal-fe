@@ -211,7 +211,8 @@ eventClick: function (info) {
           const selectedTasks = templates[templateKey].map(task => ({
             ...task,
             source: 'template',
-            template_name: templateKey
+            template_name: templateKey,
+            todo_time: task.todo_time
           }));
           storedTasks = [...storedTasks, ...selectedTasks];
           renderTasks(storedTasks);
@@ -242,6 +243,7 @@ eventClick: function (info) {
           const templateBox = document.createElement('div');
           templateBox.className = 'template-task-box';
           templateBox.innerHTML = `<strong>משימות מהתבנית:</strong>`;
+        
           templateTasks.forEach((task) => {
             const li = document.createElement('li');
             li.innerHTML = `
@@ -250,14 +252,51 @@ eventClick: function (info) {
               </div>
               <div class="task-desc-text">${task.desc}</div>
             `;
+        
+            const statusWrapper = document.createElement('div');
+            statusWrapper.style.display = 'flex';
+            statusWrapper.style.alignItems = 'center';
+            statusWrapper.style.gap = '10px'; // space between status and button
+            statusWrapper.style.marginTop = '8px';
+            
+            const statusEl = document.createElement('div');
+            statusEl.textContent = `סטאטוס: ${task.done ? 'בוצע - ' : 'לא בוצע - '}`;
+            
+            const toggleBtn = document.createElement('button');
+            toggleBtn.textContent = task.done ? 'לחץ להחזיר ללא בוצע' : 'לחץ אם בוצע';
+            toggleBtn.title = 'שנה סטאטוס משימה';
+            
+            toggleBtn.onclick = () => {
+              task.done = !task.done;
+              statusEl.textContent = `סטאטוס: ${task.done ? 'בוצע - ' : 'לא בוצע - '}`;
+              toggleBtn.textContent = task.done ? 'לחץ להחזיר ללא בוצע' : 'לחץ אם בוצע';
+              saveToServer();
+            
+              // Send WhatsApp message on click
+              fetch(`${BASE_URL}/wa-task`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  task: task.desc,
+                  event_key: eventKey,
+                  undone: !task.done // ← use this to switch between בוצע and לא בוצע
+                })
+              }).then(r => r.json()).then(console.log);
+            };
+            
+            statusWrapper.appendChild(statusEl);
+            statusWrapper.appendChild(toggleBtn);
+            li.appendChild(statusWrapper);
             templateBox.appendChild(li);
           });
+        
           taskListEl.appendChild(templateBox);
-        }
+        }        
 
         manualTasks.forEach((task) => {
           const trueIndex = storedTasks.indexOf(task);
           const li = document.createElement('li');
+        
           li.innerHTML = `
             <div class="task-card-header">
               <button class="edit-task" data-index="${trueIndex}" title="ערוך">✏️</button>
@@ -266,8 +305,44 @@ eventClick: function (info) {
             </div>
             <div class="task-desc-text">${task.desc}</div>
           `;
+        
+          // add done button to manual tasks
+          const statusWrapper = document.createElement('div');
+          statusWrapper.style.display = 'flex';
+          statusWrapper.style.alignItems = 'center';
+          statusWrapper.style.gap = '10px'; // space between status and button
+          statusWrapper.style.marginTop = '8px';
+          
+          const statusEl = document.createElement('div');
+          statusEl.textContent = `סטאטוס: ${task.done ? 'בוצע - ' : 'לא בוצע - '}`;
+          
+          const toggleBtn = document.createElement('button');
+          toggleBtn.textContent = task.done ? 'לחץ להחזיר ללא בוצע' : 'לחץ אם בוצע';
+          toggleBtn.title = 'שנה סטאטוס משימה';
+          
+          toggleBtn.onclick = () => {
+            task.done = !task.done;
+            statusEl.textContent = `סטאטוס: ${task.done ? 'בוצע - ' : 'לא בוצע - '}`;
+            toggleBtn.textContent = task.done ? 'לחץ להחזיר ללא בוצע' : 'לחץ אם בוצע';
+            saveToServer();
+          
+            // Send WhatsApp message on click
+            fetch(`${BASE_URL}/wa-task`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                task: task.desc,
+                event_key: eventKey,
+                undone: !task.done // ← use this to switch between בוצע and לא בוצע
+              })
+            }).then(r => r.json()).then(console.log);
+          };
+          
+          statusWrapper.appendChild(statusEl);
+          statusWrapper.appendChild(toggleBtn);
+          li.appendChild(statusWrapper);
           taskListEl.appendChild(li);
-        });        
+        });              
 
         taskListEl.querySelectorAll('.delete-task').forEach(btn => {
           btn.addEventListener('click', (e) => {
@@ -342,10 +417,16 @@ eventClick: function (info) {
         const priority = document.getElementById('new-priority').value;
         if (!desc) return;
 
-        storedTasks.push({ desc, stage, priority, source: 'manual' });
+        let todo_time = '';
+        if (stage === 'תחילה') todo_time = 'pre_00:00';
+        else if (stage === 'אמצע') todo_time = 'started_00:00';
+        else if (stage === 'סוף') todo_time = 'ended_00:00';
+
+        storedTasks.push({ desc, stage, priority, source: 'manual', todo_time });
+
         renderTasks(storedTasks);
         document.getElementById('new-desc').value = '';
-        document.getElementById('new-stage').value = 'לפני';
+        document.getElementById('new-stage').value = 'תחילה';
         document.getElementById('new-priority').value = 'גבוהה';
         saveToServer();
       };
