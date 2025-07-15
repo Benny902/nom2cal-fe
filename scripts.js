@@ -208,17 +208,27 @@ eventClick: function (info) {
         const templateKey = templateSelect.value;
         if (templateKey && templates[templateKey]) {
           storedTasks = storedTasks.filter(t => t.source !== 'template');
+      
           const selectedTasks = templates[templateKey].map(task => ({
             ...task,
             source: 'template',
             template_name: templateKey,
-            todo_time: task.todo_time
+            todo_time: task.todo_time || generateTodoTime(task.stage),
+            done: false
           }));
+      
           storedTasks = [...storedTasks, ...selectedTasks];
           renderTasks(storedTasks);
           saveToServer();
         }
       };
+      
+      function generateTodoTime(stage) {
+        if (stage === 'תחילה') return 'pre_00:00';
+        if (stage === 'אמצע') return 'started_00:00';
+        if (stage === 'סוף') return 'ended_00:00';
+        return 'unknown_00:00';
+      }      
 
       function saveToServer() {
         const branch = info.event.extendedProps.calendar || '';
