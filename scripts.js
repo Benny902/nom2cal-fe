@@ -110,6 +110,12 @@ window.addEventListener('DOMContentLoaded', () => {
           center: '',
           end: 'today prev,next dayGridMonth,timeGridWeek,timeGridDay'
         },
+        buttonText: {
+          today: 'היום',
+          month: 'חודש',
+          week: 'שבוע',
+          day: 'יום'
+        },
         events: (fetchInfo, successCallback) => {
           const filtered = events.filter(e => activeCalendars[e.extendedProps.calendar]);
           successCallback(filtered);
