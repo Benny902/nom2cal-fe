@@ -223,11 +223,12 @@ body {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 10px;
+    margin-bottom: 1px;
     direction: ltr; /* flip layout direction to position items logically */
   }
   
   .modal-field .field-group {
+    width: 250px;
     display: flex;
     align-items: center;
     gap: 5px;
@@ -235,6 +236,79 @@ body {
   }
   
   .modal-field select {
-    max-width: 150px;
+    width: 100%;
+    max-width: 300px;
+    padding: 8px;
+    font-size: 14px;
+    box-sizing: border-box;
+  }
+  
+  .dropdown-multiselect {
+    margin-top: 21px;
+    position: relative;
+    width: 300px;
+    max-width: 300px;
+  }
+  
+  #shift-dropdown-toggle {
+    border: 1px solid #ccc;
+    padding: 8px;
+    background: #fff;
+    cursor: pointer;
+    user-select: none;
+  }
+  
+  .dropdown-options {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    background: white;
+    border: 1px solid #ccc;
+    max-height: 200px;
+    overflow-y: auto;
+    width: 100%;
+    z-index: 1000;
+  }
+  
+  .dropdown-options label {
+    display: block;
+    padding: 4px 8px;
+    cursor: pointer;
+  }
+  
+  .dropdown-options label:hover {
+    background-color: #f0f0f0;
+  }
+  
+  .hidden {
+    display: none;
+  }
+  
+  #template-select {
+    width: 100%;
+    max-width: 300px;
+    padding: 8px;
+    font-size: 14px;
+    height: 38px;
+    box-sizing: border-box;
+    border: 1px solid #ccc;
+    background-color: #fff;
+    border-radius: 0;
+  }
+
+  #shift-checkboxes.dropdown-options {
+    margin-top: -42px;
+    padding-top: 0;
+    border-top: none;
+  }
+
+  #shift-dropdown-toggle {
+    margin-top: 24px;
+    border: 1px solid #ccc;
+    padding: 8px;
+    background: #fff;
+    cursor: pointer;
+    user-select: none;
+    margin: 0;
   }
   

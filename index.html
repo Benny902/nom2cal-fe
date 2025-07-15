@@ -23,25 +23,19 @@
       <div class="modal-field">
 
         <div class="field-group">
-        <label id="shift-label" for="shift-select">עובד משמרת:</label>
-        <select id="shift-select" dir="rtl"></select>
+          <label id="shift-label" for="shift-select">עובד משמרת:</label>
+          <div class="dropdown-multiselect" id="shift-dropdown">
+            <div id="shift-dropdown-toggle">בחר עובדים ▼</div>
+            <div id="shift-checkboxes" class="dropdown-options hidden"></div>
+          </div>        
         </div>
 
         <div class="field-group">
         <label for="template-select">תבנית משימות:</label>
         <select id="template-select" dir="rtl">
-          <option value="">— בחר תבנית —</option>
-          <option value="tasks1">תבנית 1</option>
-          <option value="tasks2">תבנית 2</option>
-          <option value="tasks3">תבנית 3</option>
-          <option value="tasks4">תבנית 4</option>
-          <option value="tasks5">תבנית 5</option>
-          <option value="tasks6">תבנית 6</option>
-          <option value="tasks7">תבנית 7</option>
-          <option value="tasks8">תבנית 8</option>
-          <option value="tasks9">תבנית 9</option>
-          <option value="tasks10">תבנית 10</option>
-        </select>
+          <option value="standard">תבנית רגילה</option>
+          <option value="standard_with_maatefet">תבנית עם מעטפת</option>
+        </select>        
       </div>
 
       </div>        

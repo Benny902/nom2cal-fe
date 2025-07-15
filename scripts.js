@@ -1,7 +1,7 @@
 console.log("Script loaded");
 
-// const BASE_URL = 'http://localhost:5000'; // local backend
-const BASE_URL = 'https://nom2cal.onrender.com'; // live backend
+ const BASE_URL = 'http://localhost:5000'; // local backend
+//const BASE_URL = 'https://nom2cal.onrender.com'; // live backend
 
 const calendarColors = {
   'הרצליה': '#f57c00',
@@ -16,6 +16,14 @@ window.addEventListener('DOMContentLoaded', () => {
   const modal = document.getElementById('event-modal');
   const modalClose = document.getElementById('modal-close');
   const descTextarea = document.getElementById('new-desc');
+
+  document.addEventListener('click', function (e) {
+    const dropdown = document.getElementById('shift-dropdown');
+    const menu = document.getElementById('shift-checkboxes');
+    if (!dropdown.contains(e.target)) {
+      menu.classList.add('hidden');
+    }
+  });  
 
   if (descTextarea) {
     descTextarea.addEventListener('input', function () {
@@ -126,210 +134,254 @@ window.addEventListener('DOMContentLoaded', () => {
             tooltip.style.display = 'none';
             document.body.appendChild(tooltip);
 
-            info.el.addEventListener('mouseenter', () => {
+            info.el.addEventListener('mouseenter', (e) => {
               tooltip.style.display = 'block';
-              tooltip.style.left = `${info.jsEvent.pageX + 10}px`;
-              tooltip.style.top = `${info.jsEvent.pageY + 10}px`;
-            });
+              tooltip.style.left = `${e.pageX + 10}px`;
+              tooltip.style.top = `${e.pageY + 10}px`;
+            });            
 
             info.el.addEventListener('mouseleave', () => {
               tooltip.style.display = 'none';
             });
           }
         },
-        eventClick: async function (info) {
-          modal.classList.remove('hidden');
-          document.getElementById('modal-title').textContent = info.event.title;
-          const start = formatDate(info.event.start);
-          const end = formatDate(info.event.end);
-          document.getElementById('modal-time').textContent = `${start} ← ${end}`;
-          document.getElementById('modal-location').textContent = info.event.extendedProps.location || '';
-          document.getElementById('modal-description').innerHTML = info.event.extendedProps.description || '';
+eventClick: function (info) {
+  modal.classList.remove('hidden');
+  document.getElementById('modal-title').textContent = info.event.title;
+  const start = formatDate(info.event.start);
+  const end = formatDate(info.event.end);
+  document.getElementById('modal-time').textContent = `${start} ← ${end}`;
+  document.getElementById('modal-location').textContent = info.event.extendedProps.location || '';
+  document.getElementById('modal-description').innerHTML = info.event.extendedProps.description || '';
 
-          const eventKey = `${info.event.title}_${info.event.startStr}`;
-          const taskListEl = document.getElementById('task-list');
+  const eventKey = `${info.event.title}_${info.event.startStr}`;
+  const taskListEl = document.getElementById('task-list');
+  const shiftContainer = document.getElementById('shift-checkboxes');
 
-          const templateSelect = document.getElementById('template-select');
-          templateSelect.value = "";
+  shiftContainer.innerHTML = '';
 
-          // Define your templates
-          const templates = {
-            tasks1: [
-              { desc: 'פתיחה', stage: 'תחילה', priority: 'רגיל', source: 'template'  },
-              { desc: 'ניקוי', stage: 'אמצע', priority: 'נמוך', source: 'template'  },
-              { desc: 'בדיקת ציוד', stage: 'תחילה', priority: 'דחוף', source: 'template'  },
-              { desc: 'סגירה', stage: 'סוף', priority: 'רגיל', source: 'template'  }
-            ],
-            tasks2: [
-              { desc: 'הכנה מוקדמת', stage: 'תחילה', priority: 'רגיל', source: 'template'  },
-              { desc: 'שירות לקוחות', stage: 'אמצע', priority: 'רגיל', source: 'template'  },
-              { desc: 'בדיקות בטיחות', stage: 'סוף', priority: 'דחוף', source: 'template'  }
-            ],
-            tasks3: [
-              { desc: 'משהו3', stage: 'תחילה', priority: 'רגיל', source: 'template'  },
-            ],
-            tasks4: [
-              { desc: 'משהו4', stage: 'תחילה', priority: 'רגיל', source: 'template'  },
-            ],
-            tasks5: [
-              { desc: 'משהו5', stage: 'תחילה', priority: 'רגיל', source: 'template'  },
-            ],
-            tasks6: [
-              { desc: 'משהו6', stage: 'תחילה', priority: 'רגיל', source: 'template'  },
-            ],
-            tasks7: [
-              { desc: 'משהו7', stage: 'תחילה', priority: 'רגיל', source: 'template'  },
-            ],
-            tasks8: [
-              { desc: 'משהו8', stage: 'תחילה', priority: 'רגיל', source: 'template'  },
-            ],
-            tasks9: [
-              { desc: 'משהו9', stage: 'תחילה', priority: 'רגיל', source: 'template'  },
-            ],
-            tasks10: [
-              { desc: 'משהו10', stage: 'תחילה', priority: 'רגיל', source: 'template'  },
-            ],
-          };
+  let storedTasks = [];
+  let currentShift = [];
+  let usedTemplateName = '';
+
+  fetch('templates.json')
+    .then(response => response.json())
+    .then(async (templates) => {
+      try {
+        const res = await fetch(`${BASE_URL}/get_task?event_key=${encodeURIComponent(eventKey)}`);
+        const data = await res.json();
+        storedTasks = (data.tasks && data.tasks.length > 0) ? data.tasks : [];
+
+        const templateTask = storedTasks.find(t => t.source === 'template' && t.template_name);
+        if (templateTask) {
+          usedTemplateName = templateTask.template_name;
+        }
+
+        if (storedTasks.length === 0) {
+          const defaultTemplate = 'standard';
+          const selectedTasks = templates[defaultTemplate].map(task => ({
+            ...task,
+            source: 'template',
+            template_name: defaultTemplate
+          }));
+          storedTasks = [...storedTasks, ...selectedTasks];
+          usedTemplateName = defaultTemplate;
+          saveToServer();
+        }
+
+        currentShift = Array.isArray(data.shift) ? data.shift :
+          (typeof data.shift === 'string' && data.shift !== 'none') ? [data.shift] : [];
+
+      } catch (err) {
+        storedTasks = [];
+        currentShift = [];
+      }
+
+      const templateSelect = document.getElementById('template-select');
+      templateSelect.innerHTML = `
+        <option value="standard">תבנית רגילה</option>
+        <option value="standard_with_maatefet">תבנית עם מעטפת</option>
+      `;
+      templateSelect.value = usedTemplateName || 'standard';
+
+      templateSelect.onchange = () => {
+        const templateKey = templateSelect.value;
+        if (templateKey && templates[templateKey]) {
+          storedTasks = storedTasks.filter(t => t.source !== 'template');
+          const selectedTasks = templates[templateKey].map(task => ({
+            ...task,
+            source: 'template',
+            template_name: templateKey
+          }));
+          storedTasks = [...storedTasks, ...selectedTasks];
+          renderTasks(storedTasks);
+          saveToServer();
+        }
+      };
+
+      function saveToServer() {
+        const branch = info.event.extendedProps.calendar || '';
+        fetch(`${BASE_URL}/save_task`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            event_key: eventKey,
+            tasks: storedTasks,
+            shift: currentShift,
+            branch: branch
+          })
+        }).then(res => res.json()).then(console.log);
+      }
+
+      function renderTasks(taskArray) {
+        taskListEl.innerHTML = '';
+        const templateTasks = taskArray.filter(t => t.source === 'template');
+        const manualTasks = taskArray.filter(t => t.source === 'manual');
+
+        if (templateTasks.length) {
+          const templateBox = document.createElement('div');
+          templateBox.className = 'template-task-box';
+          templateBox.innerHTML = `<strong>משימות מהתבנית:</strong>`;
+          templateTasks.forEach((task) => {
+            const li = document.createElement('li');
+            li.innerHTML = `
+              <div class="task-card-header">
+                <div class="task-meta">תזמון: ${task.stage}&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;דחיפות: ${task.priority}</div>
+              </div>
+              <div class="task-desc-text">${task.desc}</div>
+            `;
+            templateBox.appendChild(li);
+          });
+          taskListEl.appendChild(templateBox);
+        }
+
+        manualTasks.forEach((task) => {
+          const trueIndex = storedTasks.indexOf(task);
+          const li = document.createElement('li');
+          li.innerHTML = `
+            <div class="task-card-header">
+              <button class="edit-task" data-index="${trueIndex}" title="ערוך">✏️</button>
+              <div class="task-meta">תזמון: ${task.stage}&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;דחיפות: ${task.priority}</div>
+              <button class="delete-task" data-index="${trueIndex}" title="מחק">🗑️</button>
+            </div>
+            <div class="task-desc-text">${task.desc}</div>
+          `;
+          taskListEl.appendChild(li);
+        });        
+
+        taskListEl.querySelectorAll('.delete-task').forEach(btn => {
+          btn.addEventListener('click', (e) => {
+            const idx = parseInt(e.target.dataset.index);
+            storedTasks.splice(idx, 1);
+            renderTasks(storedTasks);
+            saveToServer();
+          });
+        });
+
+        taskListEl.querySelectorAll('.edit-task').forEach(btn => {
+          btn.addEventListener('click', (e) => {
+            const idx = parseInt(e.target.dataset.index);
+            const task = storedTasks[idx];
+            const li = e.target.closest('li');
           
-          // Handle template selection
-          templateSelect.onchange = () => {
-            const templateKey = templateSelect.value;
-            if (templateKey && templates[templateKey]) {
-              const templateTasks = templates[templateKey].map(task => ({ ...task, source: 'template' }));
-              storedTasks = [
-                ...storedTasks.filter(task => task.source !== 'template'),
-                ...templateTasks
-              ];
+            const inputDesc = document.createElement('textarea');
+            inputDesc.value = task.desc;
+            inputDesc.rows = 2;
+            inputDesc.style.width = '100%';
+          
+            const stageSelect = document.createElement('select');
+            ['תחילה', 'אמצע', 'סוף'].forEach(opt => {
+              const option = document.createElement('option');
+              option.value = opt;
+              option.textContent = opt;
+              if (task.stage === opt) option.selected = true;
+              stageSelect.appendChild(option);
+            });
+          
+            const prioritySelect = document.createElement('select');
+            ['נמוך', 'רגיל', 'דחוף'].forEach(opt => {
+              const option = document.createElement('option');
+              option.value = opt;
+              option.textContent = opt;
+              if (task.priority === opt) option.selected = true;
+              prioritySelect.appendChild(option);
+            });
+          
+            const saveBtn = document.createElement('button');
+            saveBtn.textContent = '💾';
+            saveBtn.title = 'שמור שינויים';
+            saveBtn.style.marginRight = '8px';
+          
+            saveBtn.onclick = () => {
+              task.desc = inputDesc.value.trim();
+              task.stage = stageSelect.value;
+              task.priority = prioritySelect.value;
               renderTasks(storedTasks);
               saveToServer();
-            }
-          };                  
-
-          const defaultTemplates = [
-            { desc: 'פתיחה', stage: 'תחילה', priority: 'רגיל' },
-            { desc: 'ניקוי', stage: 'אמצע', priority: 'נמוך' },
-            { desc: 'בדיקת ציוד', stage: 'תחילה', priority: 'דחוף' },
-            { desc: 'סגירה', stage: 'סוף', priority: 'רגיל' }
-          ];
-
-          let storedTasks = [];
-          let currentShift = 'עובד1';
-
-          try {
-            const res = await fetch(`${BASE_URL}/get_task?event_key=${encodeURIComponent(eventKey)}`);
-            const data = await res.json();
-            storedTasks = (data.tasks && data.tasks.length > 0) ? data.tasks : [];
-            currentShift = data.shift || 'עובד1';
-            const shiftSelect = document.getElementById('shift-select');
-            shiftSelect.innerHTML = '';
-            for (let i = 1; i <= 10; i++) {
-              const option = document.createElement('option');
-              option.value = `עובד${i}`;
-              option.textContent = `עובד${i}`;
-              shiftSelect.appendChild(option);
-            }
-            shiftSelect.value = currentShift;
-            
-            // Save initial only once both shift and tasks are ready
-            if (storedTasks.length === defaultTemplates.length && !data.shift) {
-              saveToServer();
-            }
-            
-            shiftSelect.onchange = () => {
-              saveToServer();
             };
-            
-          } catch (err) {
-            storedTasks = [...defaultTemplates];
-          }
+          
+            const descDiv = li.querySelector('.task-desc-text');
+            const metaDiv = li.querySelector('.task-meta');
+            descDiv.innerHTML = ''; // Clear original
+            metaDiv.innerHTML = ''; // Clear original
+          
+            descDiv.appendChild(inputDesc);
+            metaDiv.appendChild(stageSelect);
+            metaDiv.appendChild(prioritySelect);
+            metaDiv.appendChild(saveBtn);
+          });
+          
+        });
+      }
 
-          function saveToServer() {
-            fetch(`${BASE_URL}/save_task`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                event_key: eventKey,
-                tasks: storedTasks,
-                shift: shiftSelect.value
-              })
-            }).then(res => res.json()).then(console.log);
-          }
+      renderTasks(storedTasks);
 
-          function renderTasks(taskArray) {
-            taskListEl.innerHTML = '';
-            taskArray.forEach((task, index) => {
-              const li = document.createElement('li');
-              li.innerHTML = `
-                <div class="task-card-header">
-                  <button class="edit-task" data-index="${index}" title="ערוך">✏️</button>
-                  <div class="task-meta">תזמון: ${task.stage}&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;דחיפות: ${task.priority}</div>
-                  <button class="delete-task" data-index="${index}" title="מחק">🗑️</button>
-                </div>
-                <div class="task-desc-text">${task.desc}</div>
-              `;
-              taskListEl.appendChild(li);
-            });
+      document.getElementById('add-task-confirm').onclick = () => {
+        const desc = document.getElementById('new-desc').value.trim();
+        const stage = document.getElementById('new-stage').value;
+        const priority = document.getElementById('new-priority').value;
+        if (!desc) return;
 
-            taskListEl.querySelectorAll('.delete-task').forEach(btn => {
-              btn.addEventListener('click', (e) => {
-                const idx = parseInt(e.target.dataset.index);
-                storedTasks.splice(idx, 1);
-                renderTasks(storedTasks);
-                saveToServer();
-              });
-            });
+        storedTasks.push({ desc, stage, priority, source: 'manual' });
+        renderTasks(storedTasks);
+        document.getElementById('new-desc').value = '';
+        document.getElementById('new-stage').value = 'לפני';
+        document.getElementById('new-priority').value = 'גבוהה';
+        saveToServer();
+      };
 
-            taskListEl.querySelectorAll('.edit-task').forEach(btn => {
-              btn.addEventListener('click', (e) => {
-                const idx = parseInt(e.target.dataset.index);
-                const task = storedTasks[idx];
-                document.getElementById('new-desc').value = task.desc;
-                document.getElementById('new-stage').value = task.stage;
-                document.getElementById('new-priority').value = task.priority;
-
-                document.getElementById('add-task-confirm').onclick = () => {
-                  const desc = document.getElementById('new-desc').value.trim();
-                  const stage = document.getElementById('new-stage').value;
-                  const priority = document.getElementById('new-priority').value;
-                  if (!desc) return;
-
-                  storedTasks[idx] = { desc, stage, priority };
-                  renderTasks(storedTasks);
-                  document.getElementById('new-desc').value = '';
-                  saveToServer();
-                };
-              });
-            });
-          }
-
-          renderTasks(storedTasks);
-
-          document.getElementById('add-task-confirm').onclick = () => {
-            const desc = document.getElementById('new-desc').value.trim();
-            const stage = document.getElementById('new-stage').value;
-            const priority = document.getElementById('new-priority').value;
-            if (!desc) return;
-
-            storedTasks.push({ desc, stage, priority, source: 'manual' });
-            renderTasks(storedTasks);
-            document.getElementById('new-desc').value = '';
+      fetch('employees.json')
+      .then(res => res.json())
+      .then(employees => {
+        shiftContainer.innerHTML = ''; // clear
+    
+        const shiftDropdownToggle = document.getElementById('shift-dropdown-toggle');
+        shiftDropdownToggle.onclick = () => {
+          shiftContainer.classList.toggle('hidden');
+        };
+    
+        employees.forEach(emp => {
+          const label = document.createElement('label');
+          const checkbox = document.createElement('input');
+          checkbox.type = 'checkbox';
+          checkbox.value = emp.name;
+          checkbox.checked = currentShift.includes(emp.name);
+          checkbox.addEventListener('change', () => {
+            const checked = [...shiftContainer.querySelectorAll('input:checked')].map(c => c.value);
+            currentShift = checked.length ? checked : ['none'];
             saveToServer();
-          };
+          });
+    
+          label.appendChild(checkbox);
+          //label.append(` ${emp.name} (${emp.phone})`);
+          label.append(`${emp.name}`);
+          shiftContainer.appendChild(label);
+        });
+      });
+    
+    });
+}
 
-          const shiftSelect = document.getElementById('shift-select');
-          shiftSelect.innerHTML = '';
-          for (let i = 1; i <= 10; i++) {
-            const option = document.createElement('option');
-            option.value = `עובד${i}`;
-            option.textContent = `עובד${i}`;
-            shiftSelect.appendChild(option);
-          }
-          shiftSelect.value = currentShift;
-
-          shiftSelect.onchange = () => {
-            saveToServer();
-          };
-        }
       });
 
       calendar.render();

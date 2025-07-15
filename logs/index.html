@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!DOCTYPE html dir="rtl">
 <html lang="he" dir="rtl">
 <head>
   <meta charset="UTF-8">
@@ -49,15 +49,19 @@
         <th>מזהה אירוע</th>
         <th>פעולה</th>
         <th>פרטים</th>
+        <th>סניף</th>
       </tr>
-    </thead>
+    </thead>    
     <tbody>
       <!-- Logs will be inserted here dynamically -->
     </tbody>
   </table>
 
   <script>
-    fetch('https://nom2cal.onrender.com/logs')
+  const BASE_URL = 'http://localhost:5000'; // local backend
+  //const BASE_URL = 'https://nom2cal.onrender.com'; // live backend
+
+    fetch(`${BASE_URL}/logs`)
       .then(response => response.json())
       .then(data => {
         const tbody = document.querySelector('#log-table tbody');
@@ -68,6 +72,7 @@
             <td>${log.event_key}</td>
             <td>${log.action}</td>
             <td>${log.details}</td>
+            <td>${log.branch || ''}</td>
           `;
           tbody.appendChild(row);
         });
