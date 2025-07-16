@@ -11,6 +11,12 @@ const calendarColors = {
 
 let calendar;
 
+const stageColors = {
+  'פתיחה': 'green',
+  'שוטף': 'orange',
+  'סגירה': 'red'
+};
+
 window.addEventListener('DOMContentLoaded', () => {
   const legend = document.getElementById('calendar-legend');
   const modal = document.getElementById('event-modal');
@@ -313,6 +319,12 @@ eventClick: function (info) {
             statusWrapper.appendChild(statusEl);
             statusWrapper.appendChild(toggleBtn);
             li.appendChild(statusWrapper);
+
+            li.style.border = `3px solid ${stageColors[task.stage] || 'gray'}`;
+            li.style.borderRadius = '6px';
+            li.style.padding = '10px';
+            li.style.marginBottom = '10px';
+
             templateBox.appendChild(li);
           });
         
@@ -371,6 +383,12 @@ eventClick: function (info) {
           statusWrapper.appendChild(statusEl);
           statusWrapper.appendChild(toggleBtn);
           li.appendChild(statusWrapper);
+
+          li.style.border = `3px solid ${stageColors[task.stage] || 'gray'}`;
+          li.style.borderRadius = '6px';
+          li.style.padding = '10px';
+          li.style.marginBottom = '10px';          
+
           taskListEl.appendChild(li);
         });              
 
