@@ -176,23 +176,26 @@ eventClick: function (info) {
       try {
         const res = await fetch(`${BASE_URL}/get_task?event_key=${encodeURIComponent(eventKey)}`);
         const data = await res.json();
-        storedTasks = (data.tasks && data.tasks.length > 0) ? data.tasks : [];
-
-        const templateTask = storedTasks.find(t => t.source === 'template' && t.template_name);
-        if (templateTask) {
-          usedTemplateName = templateTask.template_name;
-        }
+        storedTasks = Array.isArray(data.tasks) ? data.tasks : [];
 
         if (storedTasks.length === 0) {
           const defaultTemplate = 'standard';
           const selectedTasks = templates[defaultTemplate].map(task => ({
             ...task,
             source: 'template',
-            template_name: defaultTemplate
+            template_name: defaultTemplate,
+            todo_time: task.todo_time || generateTodoTime(task.stage),
+            done: false
           }));
           storedTasks = [...storedTasks, ...selectedTasks];
           usedTemplateName = defaultTemplate;
           saveToServer();
+        }
+
+
+        const templateTask = storedTasks.find(t => t.source === 'template' && t.template_name);
+        if (templateTask) {
+          usedTemplateName = templateTask.template_name;
         }
 
         currentShift = Array.isArray(data.shift) ? data.shift :
@@ -224,15 +227,15 @@ eventClick: function (info) {
           }));
       
           storedTasks = [...storedTasks, ...selectedTasks];
-          renderTasks(storedTasks);
+          renderTasks(storedTasks, info.event.startStr, info.event.endStr);
           saveToServer();
         }
       };
       
       function generateTodoTime(stage) {
-        if (stage === 'תחילה') return 'pre_00:00';
-        if (stage === 'אמצע') return 'started_00:00';
-        if (stage === 'סוף') return 'ended_00:00';
+        if (stage === 'פתיחה') return 'pre_00:00';
+        if (stage === 'שוטף') return 'started_00:00';
+        if (stage === 'סגירה') return 'ended_00:00';
         return 'unknown_00:00';
       }      
 
@@ -250,7 +253,7 @@ eventClick: function (info) {
         }).then(res => res.json()).then(console.log);
       }
 
-      function renderTasks(taskArray) {
+      function renderTasks(taskArray, eventStartStr, eventEndStr) {
         taskListEl.innerHTML = '';
         const templateTasks = taskArray.filter(t => t.source === 'template');
         const manualTasks = taskArray.filter(t => t.source === 'manual');
@@ -259,12 +262,19 @@ eventClick: function (info) {
           const templateBox = document.createElement('div');
           templateBox.className = 'template-task-box';
           templateBox.innerHTML = `<strong>משימות מהתבנית:</strong>`;
-        
+
           templateTasks.forEach((task) => {
+            const trueIndex = storedTasks.indexOf(task);
+            const executionTime = getTaskExecutionTime(task.todo_time, eventStartStr, eventEndStr, task.template_name);
             const li = document.createElement('li');
             li.innerHTML = `
               <div class="task-card-header">
-                <div class="task-meta">תזמון: ${task.stage}&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;דחיפות: ${task.priority}</div>
+                <button class="edit-task" data-index="${trueIndex}" title="ערוך">✏️</button>
+                <div class="task-meta">
+                תזמון: ${task.stage} (${executionTime}) 
+                &nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp; דחיפות: ${task.priority}
+                </div>              
+                <button class="delete-task" data-index="${trueIndex}" title="מחק">🗑️</button>
               </div>
               <div class="task-desc-text">${task.desc}</div>
             `;
@@ -295,7 +305,7 @@ eventClick: function (info) {
                 body: JSON.stringify({
                   task: task.desc,
                   event_key: eventKey,
-                  undone: !task.done // ← use this to switch between בוצע and לא בוצע
+                  done: task.done
                 })
               }).then(r => r.json()).then(console.log);
             };
@@ -311,12 +321,16 @@ eventClick: function (info) {
 
         manualTasks.forEach((task) => {
           const trueIndex = storedTasks.indexOf(task);
+          const executionTime = getTaskExecutionTime(task.todo_time, eventStartStr, eventEndStr, task.template_name);
           const li = document.createElement('li');
         
           li.innerHTML = `
             <div class="task-card-header">
               <button class="edit-task" data-index="${trueIndex}" title="ערוך">✏️</button>
-              <div class="task-meta">תזמון: ${task.stage}&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;דחיפות: ${task.priority}</div>
+              <div class="task-meta">
+              תזמון: ${task.stage} (${executionTime}) 
+              &nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp; דחיפות: ${task.priority}
+              </div> 
               <button class="delete-task" data-index="${trueIndex}" title="מחק">🗑️</button>
             </div>
             <div class="task-desc-text">${task.desc}</div>
@@ -349,7 +363,7 @@ eventClick: function (info) {
               body: JSON.stringify({
                 task: task.desc,
                 event_key: eventKey,
-                undone: !task.done // ← use this to switch between בוצע and לא בוצע
+                done: task.done
               })
             }).then(r => r.json()).then(console.log);
           };
@@ -364,7 +378,7 @@ eventClick: function (info) {
           btn.addEventListener('click', (e) => {
             const idx = parseInt(e.target.dataset.index);
             storedTasks.splice(idx, 1);
-            renderTasks(storedTasks);
+            renderTasks(storedTasks, info.event.startStr, info.event.endStr);
             saveToServer();
           });
         });
@@ -381,7 +395,7 @@ eventClick: function (info) {
             inputDesc.style.width = '100%';
           
             const stageSelect = document.createElement('select');
-            ['תחילה', 'אמצע', 'סוף'].forEach(opt => {
+            ['פתיחה', 'שוטף', 'סגירה'].forEach(opt => {
               const option = document.createElement('option');
               option.value = opt;
               option.textContent = opt;
@@ -407,7 +421,7 @@ eventClick: function (info) {
               task.desc = inputDesc.value.trim();
               task.stage = stageSelect.value;
               task.priority = prioritySelect.value;
-              renderTasks(storedTasks);
+              renderTasks(storedTasks, info.event.startStr, info.event.endStr);
               saveToServer();
             };
           
@@ -425,8 +439,53 @@ eventClick: function (info) {
         });
       }
 
-      renderTasks(storedTasks);
+      renderTasks(storedTasks, info.event.startStr, info.event.endStr);
 
+      function getTaskExecutionTime(todoTime, startTimeStr, endTimeStr, templateName = '') {
+        if (!todoTime || !startTimeStr || !endTimeStr) return '';
+      
+        const [prefix, ...rest] = todoTime.split('_');
+        const timePart = rest.join('_').trim();
+      
+        // If it's "current", don't show any time
+        if (timePart === 'current') {
+          return '';
+        }
+      
+        let offsetMinutes = 0;
+        if (timePart.includes(':')) {
+          const [h, m] = timePart.split(':').map(x => Number(x.trim()));
+          offsetMinutes = h * 60 + m;
+        } else {
+          console.warn('Invalid time format:', timePart);
+          return '';
+        }
+      
+        let baseTime;
+      
+        if (prefix === 'pre') {
+          baseTime = new Date(startTimeStr);
+          const baseOffset = templateName === 'standard_with_maatefet' ? 105 : 60;
+          baseTime.setMinutes(baseTime.getMinutes() - baseOffset + offsetMinutes);
+      
+        } else if (prefix === 'started') {
+          baseTime = new Date(startTimeStr);
+          baseTime.setMinutes(baseTime.getMinutes() + offsetMinutes);
+      
+        } else if (prefix === 'ended') {
+          baseTime = new Date(endTimeStr);
+          baseTime.setMinutes(baseTime.getMinutes() + offsetMinutes);
+      
+        } else {
+          console.warn('Unknown prefix:', prefix);
+          return '';
+        }
+      
+        const hours = baseTime.getHours().toString().padStart(2, '0');
+        const minutes = baseTime.getMinutes().toString().padStart(2, '0');
+        return `${hours}:${minutes}`;
+      }      
+      
       document.getElementById('add-task-confirm').onclick = () => {
         const desc = document.getElementById('new-desc').value.trim();
         const stage = document.getElementById('new-stage').value;
@@ -434,15 +493,15 @@ eventClick: function (info) {
         if (!desc) return;
 
         let todo_time = '';
-        if (stage === 'תחילה') todo_time = 'pre_00:00';
-        else if (stage === 'אמצע') todo_time = 'started_00:00';
-        else if (stage === 'סוף') todo_time = 'ended_00:00';
+        if (stage === 'פתיחה') todo_time = 'pre_00:00';
+        else if (stage === 'שוטף') todo_time = 'started_00:00';
+        else if (stage === 'סגירה') todo_time = 'ended_00:00';
 
         storedTasks.push({ desc, stage, priority, source: 'manual', todo_time });
 
-        renderTasks(storedTasks);
+        renderTasks(storedTasks, info.event.startStr, info.event.endStr);
         document.getElementById('new-desc').value = '';
-        document.getElementById('new-stage').value = 'תחילה';
+        document.getElementById('new-stage').value = 'פתיחה';
         document.getElementById('new-priority').value = 'גבוהה';
         saveToServer();
       };
