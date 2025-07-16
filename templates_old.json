@@ -1,14 +1,12 @@
 {
-    "פתיחה": [
+    "standard": [
       {"desc": "שלב :1 פתיחה והכנה לפני הגעת הלקוחות (פתיחה) - שעת פתיחה", "stage": "פתיחה", "priority": "רגיל", "source": "template", "todo_time": "pre_00:00"},
       {"desc": "1. פתיחת המקום: דלת, תאורה, מזגנים לפי צורך, , עמדות המחשבים ומוסיקת רקע.", "stage": "פתיחה", "priority": "רגיל", "source": "template", "todo_time": "pre_00:00"},
       {"desc": "2. וידוא מול הלקוח על הגעה, מעבר מסודר על כלל פרטי ההזמנה (כולל משחקים רלוונטיים וכמות משתתפים סופית) במידה ומעטפת לבדוק שוב על אלרגניים.", "stage": "פתיחה", "priority": "רגיל", "source": "template", "todo_time": "pre_00:05"},
       {"desc": "3. ניקיון כללי בעמדות המשחק , באזור ההמתנה , שירותים ומטבחון במידה ויש.", "stage": "פתיחה", "priority": "רגיל", "source": "template", "todo_time": "pre_00:10"},
       {"desc": "4. בדיקת תקינות עמדות )מסכים, מקלדות, עכברים, אוזניות(.", "stage": "פתיחה", "priority": "רגיל", "source": "template", "todo_time": "pre_00:20"},
-      {"desc": "5. חיבור העמדות למשחקים הרלוונטיים )כפי שהלקוח ביקש מבעוד מועד(.", "stage": "פתיחה", "priority": "רגיל", "source": "template", "todo_time": "pre_00:30"}
-    ],
+      {"desc": "5. חיבור העמדות למשחקים הרלוונטיים )כפי שהלקוח ביקש מבעוד מועד(.", "stage": "פתיחה", "priority": "רגיל", "source": "template", "todo_time": "pre_00:30"},
   
-    "שוטף": [
       {"desc": "שלב :2 פעילות בזמן האירוע (שוטף)", "stage": "שוטף", "priority": "רגיל", "source": "template", "todo_time": "started_current"},
       {"desc": "1. לחצן 'אירוע התחיל'", "stage": "שוטף", "priority": "רגיל", "source": "template", "todo_time": "started_current"},
       {"desc": "2. קבלת הילדים וההורים בהגעה. מרגע לחיצת 'אירוע התחיל'", "stage": "שוטף", "priority": "רגיל", "source": "template", "todo_time": "started_current"},
@@ -18,10 +16,8 @@
       {"desc": "6. בדיקות ציוד שוטפות במהלך האירוע. שוטף", "stage": "שוטף", "priority": "רגיל", "source": "template", "todo_time": "started_current"},
       {"desc": "7. סיוע טכני בזמן אמת במקרה של תקלות. שוטף", "stage": "שוטף", "priority": "רגיל", "source": "template", "todo_time": "started_current"},
       {"desc": "8. מעבר ניקיון כל שעה עגולה (כולל שירותים).", "stage": "שוטף", "priority": "רגיל", "source": "template", "todo_time": "started_current"},
-      {"desc": "9. פיקוח מתמשך בעמדות ובמתחם (כולל דגימה שעתית להורים על מצב שביעות רצונם).", "stage": "שוטף", "priority": "רגיל", "source": "template", "todo_time": "started_current"}
-    ],
-
-    "סגירה": [
+      {"desc": "9. פיקוח מתמשך בעמדות ובמתחם (כולל דגימה שעתית להורים על מצב שביעות רצונם).", "stage": "שוטף", "priority": "רגיל", "source": "template", "todo_time": "started_current"},
+  
       {"desc": "שלב :3 סגירה וניקיון אחרי האירוע (סגירה)", "stage": "סגירה", "priority": "רגיל", "source": "template", "todo_time": "ended_00:01"},
       {"desc": "1. לחצן 'סיום אירוע'", "stage": "סגירה", "priority": "רגיל", "source": "template", "todo_time": "ended_00:01"},
       {"desc": "2. סגירת התשלום מול מזמין האירוע - בהתאם למצב הנוכחי. 'סיום אירוע'", "stage": "סגירה", "priority": "רגיל", "source": "template", "todo_time": "ended_00:01"},
@@ -35,8 +31,15 @@
       {"desc": "10. עדכון המנהל בסיום.", "stage": "סגירה", "priority": "רגיל", "source": "template", "todo_time": "ended_00:40"},
       {"desc": "11. סגירת דלתות, תאורה , מיזוג והפעלת אזעקה. (במידה וזה אירוע אחרון של היום)", "stage": "סגירה", "priority": "רגיל", "source": "template", "todo_time": "ended_00:45"}  
     ],
+  
+    "standard_with_maatefet": [
+      {"desc": "שלב :1 פתיחה והכנה לפני הגעת הלקוחות (פתיחה) - שעת פתיחה", "stage": "פתיחה", "priority": "רגיל", "source": "template", "todo_time": "pre_00:00"},
+      {"desc": "1. פתיחת המקום: דלת, תאורה, מזגנים לפי צורך, , עמדות המחשבים ומוסיקת רקע.", "stage": "פתיחה", "priority": "רגיל", "source": "template", "todo_time": "pre_00:00"},
+      {"desc": "2. וידוא מול הלקוח על הגעה, מעבר מסודר על כלל פרטי ההזמנה (כולל משחקים רלוונטיים וכמות משתתפים סופית) במידה ומעטפת לבדוק שוב על אלרגניים.", "stage": "פתיחה", "priority": "רגיל", "source": "template", "todo_time": "pre_00:05"},
+      {"desc": "3. ניקיון כללי בעמדות המשחק , באזור ההמתנה , שירותים ומטבחון במידה ויש.", "stage": "פתיחה", "priority": "רגיל", "source": "template", "todo_time": "pre_00:10"},
+      {"desc": "4. בדיקת תקינות עמדות )מסכים, מקלדות, עכברים, אוזניות(.", "stage": "פתיחה", "priority": "רגיל", "source": "template", "todo_time": "pre_00:20"},
+      {"desc": "5. חיבור העמדות למשחקים הרלוונטיים )כפי שהלקוח ביקש מבעוד מועד(.", "stage": "פתיחה", "priority": "רגיל", "source": "template", "todo_time": "pre_00:30"},
 
-    "מעטפת": [
       {"desc": "תבנית חבילת מעטפת - לאחר שלב 'פתיחה'", "stage": "פתיחה", "priority": "רגיל", "source": "template", "todo_time": "pre_00:40"},
       {"desc": "1. הזמנת בלונים.", "stage": "פתיחה", "priority": "רגיל", "source": "template", "todo_time": "pre_00:40"},
       {"desc": "2. קניות סופר (חטיפים + שתייה קלה + כלי הגשה במידת הצורך).", "stage": "פתיחה", "priority": "רגיל", "source": "template", "todo_time": "pre_00:50"},
@@ -44,7 +47,31 @@
       {"desc": "4. הצבת שלט ברכה מותאם אישית בטלוויזיית הכניסה.", "stage": "שוטף", "priority": "רגיל", "source": "template", "todo_time": "pre_01:20"},
       {"desc": "5. קישוט המקום בבלונים.", "stage": "שוטף", "priority": "רגיל", "source": "template", "todo_time": "pre_01:25"},
       {"desc": "6. סידור שולחן חטיפים + שתייה קלה.", "stage": "שוטף", "priority": "רגיל", "source": "template", "todo_time": "pre_01:35"},
-      {"desc": "7. קבלת הפיצות והגשתן. משימה שעוברת לזמן האירוע - שוטף - כשעה לפני סיום האירוע", "stage": "שוטף", "priority": "רגיל", "source": "template", "todo_time": "pre_current"}
+      {"desc": "7. קבלת הפיצות והגשתן. משימה שעוברת לזמן האירוע - שוטף - כשעה לפני סיום האירוע", "stage": "סגירה", "priority": "רגיל", "source": "template", "todo_time": "pre_current"},
+
+      {"desc": "שלב :2 פעילות בזמן האירוע (שוטף)", "stage": "שוטף", "priority": "רגיל", "source": "template", "todo_time": "started_current"},
+      {"desc": "1. לחצן 'אירוע התחיל'", "stage": "שוטף", "priority": "רגיל", "source": "template", "todo_time": "started_current"},
+      {"desc": "2. קבלת הילדים וההורים בהגעה. מרגע לחיצת 'אירוע התחיל'", "stage": "שוטף", "priority": "רגיל", "source": "template", "todo_time": "started_current"},
+      {"desc": "3. הסבר ראשוני על הפעילות (בטיחות, תכנית, כללים).", "stage": "שוטף", "priority": "רגיל", "source": "template", "todo_time": "started_00:10"},
+      {"desc": "4. חלוקת הילדים לעמדות לפי התכנון.", "stage": "שוטף", "priority": "רגיל", "source": "template", "todo_time": "started_00:20"},
+      {"desc": "5. מענה לשאלות מהילדים ומההורים. שוטף", "stage": "שוטף", "priority": "רגיל", "source": "template", "todo_time": "started_current"},
+      {"desc": "6. בדיקות ציוד שוטפות במהלך האירוע. שוטף", "stage": "שוטף", "priority": "רגיל", "source": "template", "todo_time": "started_current"},
+      {"desc": "7. סיוע טכני בזמן אמת במקרה של תקלות. שוטף", "stage": "שוטף", "priority": "רגיל", "source": "template", "todo_time": "started_current"},
+      {"desc": "8. מעבר ניקיון כל שעה עגולה (כולל שירותים).", "stage": "שוטף", "priority": "רגיל", "source": "template", "todo_time": "started_current"},
+      {"desc": "9. פיקוח מתמשך בעמדות ובמתחם (כולל דגימה שעתית להורים על מצב שביעות רצונם).", "stage": "שוטף", "priority": "רגיל", "source": "template", "todo_time": "started_current"},
+  
+      {"desc": "שלב :3 סגירה וניקיון אחרי האירוע (סגירה)", "stage": "סגירה", "priority": "רגיל", "source": "template", "todo_time": "ended_00:01"},
+      {"desc": "1. לחצן 'סיום אירוע'", "stage": "סגירה", "priority": "רגיל", "source": "template", "todo_time": "ended_00:01"},
+      {"desc": "2. סגירת התשלום מול מזמין האירוע - בהתאם למצב הנוכחי. 'סיום אירוע'", "stage": "סגירה", "priority": "רגיל", "source": "template", "todo_time": "ended_00:01"},
+      {"desc": "3. איסוף אשפה וניקיון יסודי של המתחם.", "stage": "סגירה", "priority": "רגיל", "source": "template", "todo_time": "ended_00:05"},
+      {"desc": "4. סידור הציוד ההיקפי לפי הסטנדרט.", "stage": "סגירה", "priority": "רגיל", "source": "template", "todo_time": "ended_00:10"},
+      {"desc": "5. בדיקת מלאי ציוד (במיוחד שלטי סוני).", "stage": "סגירה", "priority": "רגיל", "source": "template", "todo_time": "ended_00:15"},
+      {"desc": "6. חיטוי עמדות ומשטחים.", "stage": "סגירה", "priority": "רגיל", "source": "template", "todo_time": "ended_00:20"},
+      {"desc": "7. כיבוי כל המחשבים והעמדות (במידה וזה אירוע אחרון של היום).", "stage": "סגירה", "priority": "רגיל", "source": "template", "todo_time": "ended_00:25"},
+      {"desc": "8. מילוי דו\"ח סיום אירוע (כולל ציון בעיות חריגות אם היו).", "stage": "סגירה", "priority": "רגיל", "source": "template", "todo_time": "ended_00:30"},
+      {"desc": "9. מילוי נתונים יומיים וספירת קופה (במידה וזה אירוע אחרון של היום).", "stage": "סגירה", "priority": "רגיל", "source": "template", "todo_time": "ended_00:35"},
+      {"desc": "10. עדכון המנהל בסיום.", "stage": "סגירה", "priority": "רגיל", "source": "template", "todo_time": "ended_00:40"},
+      {"desc": "11. סגירת דלתות, תאורה , מיזוג והפעלת אזעקה. (במידה וזה אירוע אחרון של היום)", "stage": "סגירה", "priority": "רגיל", "source": "template", "todo_time": "ended_00:45"}  
     ]
   }
   

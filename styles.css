@@ -296,13 +296,13 @@ body {
     border-radius: 0;
   }
 
-  #shift-checkboxes.dropdown-options {
+  #shift-checkboxes.dropdown-options, #template-checkboxes.dropdown-options {
     margin-top: -42px;
     padding-top: 0;
     border-top: none;
   }
 
-  #shift-dropdown-toggle {
+  #shift-dropdown-toggle, #template-dropdown-toggle {
     margin-top: 24px;
     border: 1px solid #ccc;
     padding: 8px;
