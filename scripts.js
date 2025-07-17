@@ -34,6 +34,33 @@
       }
     };
 
+    function getFormattedManualTime(manualTime) {
+      if (!manualTime || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(manualTime)) return null;
+    
+      const date = new Date(manualTime);
+      return date.toLocaleTimeString('he-IL', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+        timeZone: 'Asia/Jerusalem'
+      });
+    }    
+
+    function parseManualTimeToFullISO(hhmm, baseDateStr) {
+      if (!hhmm || !/^\d{1,2}:\d{2}$/.test(hhmm)) return '';
+      try {
+        const [h, m] = hhmm.split(':').map(Number);
+        const base = new Date(baseDateStr);
+        base.setHours(h, m, 0, 0);
+    
+        // Convert to Asia/Jerusalem ISO
+        const jerusalemTime = new Date(base.toLocaleString("en-US", { timeZone: "Asia/Jerusalem" }));
+        return jerusalemTime.toISOString();
+      } catch {
+        return '';
+      }
+    }    
+
     window.addEventListener('DOMContentLoaded', () => {
       const legend = document.getElementById('calendar-legend');
       const modal = document.getElementById('event-modal');
@@ -201,7 +228,7 @@
       let usedTemplateName = '';
       let selectedTemplateNames = new Set();
 
-      fetch('templates.json')
+      fetch(`${BASE_URL}/get_templates`)
         .then(response => response.json())
         .then(async (templates) => {
           try {
@@ -286,6 +313,25 @@
           }      
 
           function saveToServer() {
+            storedTasks = storedTasks.map(task => {
+              if (
+                task.source === 'template' &&
+                (!task.manual_todo_time || task.manual_todo_time === '')
+              ) {
+                const execTimeStr = getTaskExecutionTime(
+                  task.todo_time,
+                  info.event.startStr,
+                  info.event.endStr,
+                  task.template_name,
+                  selectedTemplateNames,
+                  ''
+                );
+                const fullIso = parseManualTimeToFullISO(execTimeStr, info.event.startStr);
+                return { ...task, manual_todo_time: fullIso };
+              }
+              return task;
+            });
+          
             const branch = info.event.extendedProps.calendar || '';
             fetch(`${BASE_URL}/save_task`, {
               method: 'POST',
@@ -297,7 +343,7 @@
                 branch: branch
               })
             }).then(res => res.json()).then(console.log);
-          }
+          }          
 
           function renderTasks(taskArray, eventStartStr, eventEndStr, selectedTemplateNames) {
             taskListEl.innerHTML = '';
@@ -320,14 +366,20 @@
               const stageDiff = (stageOrder[stageA] || 99) - (stageOrder[stageB] || 99);
               if (stageDiff !== 0) return stageDiff;
             
-              // Compare todo_time
-              const aTime = parseTodoTime(a.todo_time);
-              const bTime = parseTodoTime(b.todo_time);
+              // Use manual_todo_time if available
+              const aTime = parseTodoTime(a.manual_todo_time || a.todo_time);
+              const bTime = parseTodoTime(b.manual_todo_time || b.todo_time);
               return aTime - bTime;
-            });
+            });            
 
             function parseTodoTime(todo) {
               if (!todo || typeof todo !== 'string') return Infinity;
+            
+              // If it's an ISO datetime string, treat it as manual
+              if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(todo)) {
+                const date = new Date(todo);
+                return date.getHours() * 60 + date.getMinutes();
+              }
             
               const [prefix, timePart] = todo.split('_');
               if (!timePart || timePart === 'current') return Infinity;
@@ -339,16 +391,24 @@
               if (prefix === 'started') return 0 + minutes;
               if (prefix === 'ended') return 10000 + minutes;      // latest
               return Infinity;
-            }
+            }            
             
             const taskBox = document.createElement('div');
             taskBox.className = 'template-task-box';
             taskBox.innerHTML = `<strong>רשימת המשימות:</strong>`;
             
             enrichedTasks.forEach(task => {
-              const trueIndex = storedTasks.indexOf(task);
+              const trueIndex = storedTasks.findIndex(t =>
+                t.desc === task.desc &&
+                t.stage === task.stage &&
+                t.priority === task.priority &&
+                t.todo_time === task.todo_time &&
+                t.manual_todo_time === task.manual_todo_time
+              );              
+              //const trueIndex = storedTasks.indexOf(task);
               //const trueIndex = storedTasks.findIndex(t => t.desc === task.desc && t.stage === task.stage && t.priority === task.priority);
-              const executionTime = getTaskExecutionTime(task.todo_time, eventStartStr, eventEndStr, task.template_name, selectedTemplateNames);
+              const manualTimeStr = getFormattedManualTime(task.manual_todo_time);
+              const executionTime = manualTimeStr || getTaskExecutionTime(task.todo_time, eventStartStr, eventEndStr, task.template_name, selectedTemplateNames, '');              
             
               const li = document.createElement('li');
               li.innerHTML = `
@@ -483,6 +543,21 @@
                   prioritySelect.appendChild(option);
                 });
               
+                const manualTimeInput = document.createElement('input');
+                manualTimeInput.type = 'text';
+                manualTimeInput.placeholder = 'תזמון ידני (לדוג׳ 17:00)';
+                manualTimeInput.value = task.manual_todo_time
+                  ? new Date(task.manual_todo_time).toLocaleTimeString('he-IL', {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                      hour12: false,
+                      timeZone: 'Asia/Jerusalem'
+                    })
+                  : '';
+
+                manualTimeInput.style.marginTop = '6px';
+                manualTimeInput.style.width = '100%';                
+
                 const saveBtn = document.createElement('button');
                 saveBtn.textContent = '💾';
                 saveBtn.title = 'שמור שינויים';
@@ -492,6 +567,9 @@
                   task.desc = inputDesc.value.trim();
                   task.stage = stageSelect.value;
                   task.priority = prioritySelect.value;
+                  const timeStr = manualTimeInput.value.trim();
+                  task.manual_todo_time = parseManualTimeToFullISO(timeStr, eventStartStr);
+
                   renderTasks(storedTasks, info.event.startStr, info.event.endStr, selectedTemplateNames);
                   saveToServer();
                 };
@@ -503,6 +581,7 @@
               
                 descDiv.appendChild(inputDesc);
                 metaDiv.appendChild(stageSelect);
+                metaDiv.appendChild(manualTimeInput);
                 metaDiv.appendChild(prioritySelect);
                 metaDiv.appendChild(saveBtn);
               });
@@ -512,13 +591,23 @@
 
           renderTasks(storedTasks, info.event.startStr, info.event.endStr, selectedTemplateNames);
 
-          function getTaskExecutionTime(todoTime, startTimeStr, endTimeStr, templateName = '', selectedTemplateNames = new Set()) {
-            if (!todoTime || !startTimeStr || !endTimeStr) return '';
+          function getTaskExecutionTime(todoTime, startTimeStr, endTimeStr, templateName = '', selectedTemplateNames = new Set(), manualTime = '') {
+            const timeSource = (manualTime && manualTime.trim() !== '') ? manualTime.trim() : (todoTime || '').trim();
           
-            const [prefix, ...rest] = todoTime.split('_');
+            if (!timeSource || !startTimeStr || !endTimeStr) return '';
+          
+            // Case 1: full ISO format (manual_todo_time)
+            if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(timeSource)) {
+              const date = new Date(timeSource);
+              const hours = date.getHours().toString().padStart(2, '0');
+              const minutes = date.getMinutes().toString().padStart(2, '0');
+              return `${hours}:${minutes}`;
+            }
+          
+            // Case 2: todo_time format with prefix
+            const [prefix, ...rest] = timeSource.split('_');
             const timePart = rest.join('_').trim();
-          
-            if (timePart === 'current') return '';
+            if (!prefix || !timePart || timePart === 'current') return '';
           
             let offsetMinutes = 0;
             if (timePart.includes(':')) {
@@ -530,11 +619,10 @@
             }
           
             let baseTime;
-          
             if (prefix === 'pre') {
               baseTime = new Date(startTimeStr);
           
-              // ✅ Apply 105-minute offset ONLY if:
+              // Apply 105-minute offset ONLY if:
               // 1. current task is from פתיחה
               // 2. מעטפת is also selected
               const isPtichaWithMaatefet =
@@ -559,13 +647,18 @@
             const hours = baseTime.getHours().toString().padStart(2, '0');
             const minutes = baseTime.getMinutes().toString().padStart(2, '0');
             return `${hours}:${minutes}`;
-          }
+          }          
           
           
           document.getElementById('add-task-confirm').onclick = () => {
             const desc = document.getElementById('new-desc').value.trim();
             const stage = document.getElementById('new-stage').value;
             const priority = document.getElementById('new-priority').value;
+        
+            const manualTimeInput = document.getElementById('new-manual-time').value.trim();
+            const manual_todo_time = parseManualTimeToFullISO(manualTimeInput, info.event.startStr);
+            console.log("1:",manualTimeInput);
+            console.log("2:",manual_todo_time);
             if (!desc) return;
 
             let todo_time = '';
@@ -573,16 +666,17 @@
             else if (stage === 'שוטף') todo_time = 'started_00:00';
             else if (stage === 'סגירה') todo_time = 'ended_00:00';
 
-            storedTasks.push({ desc, stage, priority, source: 'manual', todo_time });
+            storedTasks.push({ desc, stage, priority, source: 'manual', todo_time: manual_todo_time || generateTodoTime(stage), manual_todo_time });
 
             renderTasks(storedTasks, info.event.startStr, info.event.endStr, selectedTemplateNames);
             document.getElementById('new-desc').value = '';
+            document.getElementById('new-manual-time').value = '';
             document.getElementById('new-stage').value = 'פתיחה';
             document.getElementById('new-priority').value = 'גבוהה';
             saveToServer();
           };
 
-          fetch('employees.json')
+          fetch(`${BASE_URL}/get_employees`)
           .then(res => res.json())
           .then(employees => {
             shiftContainer.innerHTML = ''; // clear
