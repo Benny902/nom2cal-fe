@@ -82,7 +82,11 @@
       </div>
   
       <label for="daily-task-desc">תיאור משימה:</label>
-      <textarea id="daily-task-desc" style="width: 100%;"></textarea>
+        <div class="dropdown-multiselect">
+          <div id="daily-template-dropdown-toggle">בחר תבנית ▼</div>
+          <div id="daily-template-options" class="dropdown-options hidden"></div>
+        </div>
+        <textarea id="daily-task-desc" style="width: 100%;"></textarea>
   
       <label for="daily-task-hour">שעה:</label>
       <div id="daily-task-time-container" style="display:flex; gap:4px; margin-bottom:8px;">
