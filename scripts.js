@@ -1,7 +1,7 @@
     console.log("Script loaded");
 
-    //const BASE_URL = 'http://localhost:5000'; // local backend
-    const BASE_URL = 'https://nom2cal.onrender.com'; // live backend
+   const BASE_URL = 'http://localhost:5000'; // local backend
+    //const BASE_URL = 'https://nom2cal.onrender.com'; // live backend
 
     const calendarColors = {
       'הרצליה': '#f57c00',
@@ -60,6 +60,11 @@
         return '';
       }
     }    
+
+    function getTimeFromISO(isoStr) {
+      const d = new Date(isoStr);
+      return d.toTimeString().slice(0, 5); // "HH:MM"
+    }
 
     window.addEventListener('DOMContentLoaded', () => {
       const legend = document.getElementById('calendar-legend');
@@ -161,7 +166,7 @@
             height: 'auto',
             scrollTime: scrollTime,
             slotMinTime: "08:00:00",
-            slotMaxTime: "24:00:00",
+            slotMaxTime: "26:00:00",
             headerToolbar: {
               start: 'title',
               center: '',
@@ -184,6 +189,22 @@
                 const hour = sorted.length ? new Date(sorted[0].start).getHours() : 8;
                 calendar.setOption('scrollTime', `${Math.max(hour - 1, 8)}:00:00`);
               }
+
+              if (['timeGridWeek', 'timeGridDay'].includes(viewInfo.view.type)) {
+                setTimeout(() => {
+                  const dayHeaders = document.querySelectorAll('.fc-col-header-cell');
+                  dayHeaders.forEach(header => {
+                    const btn = document.createElement('button');
+                    btn.textContent = '+ משימה יומית';
+                    btn.className = 'daily-task-btn';
+                    btn.onclick = () => openDailyTaskModal(header.getAttribute('data-date'));
+                    if (!header.querySelector('.daily-task-btn')) {
+                      header.appendChild(btn);
+                    }
+                  });
+                }, 0);
+              }
+
             },
             eventDidMount: (info) => {
               if (info.event.extendedProps.location) {
@@ -209,6 +230,81 @@
               }
             },
     eventClick: function (info) {
+      const isDaily = info.event.title.startsWith('[משימה יומית]');
+      const eventKey = isDaily
+        ? `DAILY_${info.event.startStr.substring(0, 10)}_${info.event.extendedProps.calendar}`
+        : `${info.event.title}_${info.event.startStr}`;
+    
+        if (isDaily) {
+          info.jsEvent.stopPropagation();
+          const dateStr = info.event.startStr.substring(0, 10);
+          const branch = info.event.extendedProps.calendar || '';
+          const descFromTitle = info.event.title.replace('[משימה יומית]', '').trim();
+          const descKey = descFromTitle.replace(/\s+/g, '_').substring(0, 20);
+          const eventKey = `DAILY_${dateStr}_${branch}_${descKey}`;
+          
+
+        
+          const modal = document.getElementById('daily-task-modal');
+          document.getElementById('daily-task-modal-title').textContent = 'עריכת משימה';
+          modal.classList.remove('hidden');
+          modal.dataset.date = dateStr;
+          document.getElementById('daily-task-edit-key').value = eventKey;
+        
+          // Fetch the existing task
+          fetch(`${BASE_URL}/get_task?event_key=${encodeURIComponent(eventKey)}`)
+            .then(res => res.json())
+            .then(data => {
+              const task = data.tasks?.[0];
+              if (!task) return;
+        
+              document.getElementById('daily-task-desc').value = task.desc || '';
+              const [hh, mm] = getTimeFromISO(task.manual_todo_time || task.todo_time).split(':');
+              document.getElementById('daily-task-hour').value   = hh;
+              document.getElementById('daily-task-minute').value = mm;
+              document.getElementById('daily-task-priority').value = task.priority || 'רגיל';
+              document.getElementById('daily-task-stage').value = task.stage || 'פתיחה';
+              document.getElementById('daily-task-branch').value = branch;
+
+              fetch(`${BASE_URL}/get_employees`)
+              .then(res => res.json())
+              .then(employees => {
+                const shiftContainer = document.getElementById('daily-shift-checkboxes');
+                const toggle = document.getElementById('daily-shift-dropdown-toggle');
+
+                toggle.onclick = () => {
+                  shiftContainer.classList.toggle('hidden');
+                };
+
+                document.addEventListener('click', function (e) {
+                  const toggle = document.getElementById('daily-shift-dropdown-toggle');
+                  const menu = document.getElementById('daily-shift-checkboxes');
+                
+                  if (toggle && menu && !toggle.contains(e.target) && !menu.contains(e.target)) {
+                    menu.classList.add('hidden');
+                  }
+                });
+
+                shiftContainer.innerHTML = '';
+                const selectedShift = Array.isArray(data.shift)
+                  ? data.shift
+                  : (typeof data.shift === 'string' && data.shift !== 'none' ? [data.shift] : []);
+
+                employees.forEach(emp => {
+                  const label = document.createElement('label');
+                  const checkbox = document.createElement('input');
+                  checkbox.type = 'checkbox';
+                  checkbox.value = emp.name;
+                  checkbox.checked = selectedShift.includes(emp.name);
+                  label.appendChild(checkbox);
+                  label.append(` ${emp.name}`);
+                  shiftContainer.appendChild(label);
+                });
+              });
+            });  
+          return;
+        }      
+        
       modal.classList.remove('hidden');
       document.getElementById('modal-title').textContent = info.event.title;
       const start = formatDate(info.event.start);
@@ -217,7 +313,6 @@
       document.getElementById('modal-location').textContent = info.event.extendedProps.location || '';
       document.getElementById('modal-description').innerHTML = info.event.extendedProps.description || '';
 
-      const eventKey = `${info.event.title}_${info.event.startStr}`;
       const taskListEl = document.getElementById('task-list');
       const shiftContainer = document.getElementById('shift-checkboxes');
 
@@ -504,15 +599,18 @@
             
             taskListEl.appendChild(taskBox);
                        
-
             taskListEl.querySelectorAll('.delete-task').forEach(btn => {
               btn.addEventListener('click', (e) => {
                 const idx = parseInt(e.target.dataset.index);
+                
+                const confirmDelete = confirm("האם אתה בטוח שברצונך למחוק את המשימה?");
+                if (!confirmDelete) return;
+            
                 storedTasks.splice(idx, 1);
                 renderTasks(storedTasks, info.event.startStr, info.event.endStr, selectedTemplateNames);
                 saveToServer();
               });
-            });
+            });            
 
             taskListEl.querySelectorAll('.edit-task').forEach(btn => {
               btn.addEventListener('click', (e) => {
@@ -656,15 +754,25 @@
             const priority = document.getElementById('new-priority').value;
         
             const manualTimeInput = document.getElementById('new-manual-time').value.trim();
-            const manual_todo_time = parseManualTimeToFullISO(manualTimeInput, info.event.startStr);
-            console.log("1:",manualTimeInput);
-            console.log("2:",manual_todo_time);
-            if (!desc) return;
-
+            let manual_todo_time = parseManualTimeToFullISO(manualTimeInput, info.event.startStr);
             let todo_time = '';
             if (stage === 'פתיחה') todo_time = 'pre_00:00';
             else if (stage === 'שוטף') todo_time = 'started_00:00';
             else if (stage === 'סגירה') todo_time = 'ended_00:00';
+            
+            // If manual_todo_time is empty, fallback to UI-based calculation using todo_time
+            if (!manual_todo_time) {
+              const calculatedTimeStr = getTaskExecutionTime(
+                todo_time,
+                info.event.startStr,
+                info.event.endStr,
+                '', // template name not relevant for manual task
+                new Set(), // selected templates not relevant here
+                '' // no manual input
+              );
+              manual_todo_time = parseManualTimeToFullISO(calculatedTimeStr, info.event.startStr);
+            }
+            if (!desc) return;
 
             storedTasks.push({ desc, stage, priority, source: 'manual', todo_time: manual_todo_time || generateTodoTime(stage), manual_todo_time });
 
@@ -710,7 +818,175 @@
 
           });
 
+          fetch(`${BASE_URL}/get_daily_tasks`)
+          .then(res => res.json())
+          .then(dailyTasks => {
+            dailyTasks.forEach(task => {
+              if (!task.manual_todo_time || !task.desc || !task.branch) return;
+        
+              const start = new Date(task.manual_todo_time);
+              const end = new Date(start.getTime() + 60 * 60 * 1000); // 60-minute block
+        
+              const color = calendarColors[task.branch] || '#607d8b';
+        
+              events.push({
+                title: `[משימה יומית] ${task.desc}`,
+                start: start.toISOString(),
+                end: end.toISOString(),
+                backgroundColor: color,
+                borderColor: color,
+                extendedProps: {
+                  calendar: task.branch,
+                  location: '',
+                  description: `משימה יומית לסניף ${task.branch}`
+                }
+              });
+            });
+        
+            calendar.refetchEvents(); // triggers a refresh after adding them
+          });
+        
+
           calendar.render();
+
+          document.addEventListener('click', function (event) {
+            const modal = document.getElementById('daily-task-modal');
+            const content = document.getElementById('daily-task-modal-content');
+          
+            if (!modal.classList.contains('hidden') &&
+                !content.contains(event.target) &&
+                !event.target.closest('.daily-task-btn') &&
+                !event.target.closest('.fc-event')) {
+              modal.classList.add('hidden');
+            }
+          });
+
+          function openDailyTaskModal(dateStr) {
+            const modal = document.getElementById('daily-task-modal');
+
+            document.getElementById('daily-task-edit-key').value = '';
+            document.getElementById('daily-task-desc').value     = '';
+            document.getElementById('daily-task-hour').value   = '';
+            document.getElementById('daily-task-minute').value = '';            
+            document.getElementById('daily-task-priority').value = 'רגיל';
+            document.getElementById('daily-task-stage').value    = 'פתיחה';
+            document.getElementById('daily-task-branch').value   = '';
+
+            document.getElementById('daily-task-modal-title').textContent = 'הוספת משימה יומית';
+
+            modal.dataset.date = dateStr;
+            modal.classList.remove('hidden');
+
+            fetch(`${BASE_URL}/get_employees`)
+            .then(res => res.json())
+            .then(employees => {
+              const shiftContainer = document.getElementById('daily-shift-checkboxes');
+              const toggle = document.getElementById('daily-shift-dropdown-toggle');
+        
+              toggle.onclick = () => shiftContainer.classList.toggle('hidden');
+              document.addEventListener('click', function (e) {
+                const toggle = document.getElementById('daily-shift-dropdown-toggle');
+                const menu = document.getElementById('daily-shift-checkboxes');
+              
+                if (toggle && menu && !toggle.contains(e.target) && !menu.contains(e.target)) {
+                  menu.classList.add('hidden');
+                }
+              });
+
+              shiftContainer.innerHTML = '';
+              employees.forEach(emp => {
+                const label = document.createElement('label');
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.value = emp.name;
+                label.appendChild(checkbox);
+                label.append(` ${emp.name}`);
+                shiftContainer.appendChild(label);
+              });
+            });
+          }
+          
+          document.getElementById('daily-task-save').onclick = () => {
+            const date = document.getElementById('daily-task-modal').dataset.date;
+            const desc = document.getElementById('daily-task-desc').value.trim();
+            const hh = parseInt(document.getElementById('daily-task-hour').value, 10);
+            const mm = parseInt(document.getElementById('daily-task-minute').value, 10);
+            const isoTime = parseManualTimeToFullISO(`${hh}:${mm}`, date);
+            const priority = document.getElementById('daily-task-priority').value;
+            const branch = document.getElementById('daily-task-branch').value;
+            const stage = document.getElementById('daily-task-stage').value;
+            const existingKey = document.getElementById('daily-task-edit-key').value;
+
+            if (!desc || !branch) {
+              alert("תיאור המשימה וסניף הם שדות חובה");
+              return;
+            }
+
+            if (
+              isNaN(hh) || hh < 0 || hh > 23 ||
+              isNaN(mm) || mm < 0 || mm > 59
+            ) {
+              return alert("נא הזן שעה חוקית בין 0–23 ודקה חוקית בין 0–59");
+            }
+          
+            const eventKey = existingKey || `DAILY_${date}_${branch}_${desc.replace(/\s+/g, '_').substring(0, 20)}`;
+          
+            const shiftSelected = [
+              ...document.querySelectorAll('#daily-shift-checkboxes input:checked')
+            ].map(cb => cb.value);
+            const finalShift = shiftSelected.length ? shiftSelected : ['none'];
+          
+            fetch(`${BASE_URL}/save_task`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                event_key: eventKey,
+                tasks: [{
+                  desc,
+                  stage,
+                  priority,
+                  source: 'manual',
+                  manual_todo_time: isoTime,
+                  todo_time: isoTime,
+                  template_name: '',
+                  done: false
+                }],
+                shift: finalShift,
+                branch: branch
+              })
+            }).then(() => location.reload());
+          };
+
+          document.getElementById('daily-task-delete').onclick = () => {
+            const existingKey = document.getElementById('daily-task-edit-key').value;
+          
+            if (!existingKey) {
+              alert("לא ניתן למחוק משימה שלא קיימת");
+              return;
+            }
+          
+            const confirmed = confirm("האם אתה בטוח שברצונך למחוק את המשימה?");
+            if (!confirmed) return;
+          
+            const branch = document.getElementById('daily-task-branch').value || 'ראשון לציון';
+          
+            fetch(`${BASE_URL}/save_task`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                event_key: existingKey,
+                tasks: [],
+                shift: ['none'],
+                branch: branch
+              })
+            }).then(() => {
+              alert("המשימה נמחקה");
+              location.reload();
+            }).catch(() => {
+              alert("שגיאה במחיקת המשימה");
+            });
+          };          
+          
         });
     });
 

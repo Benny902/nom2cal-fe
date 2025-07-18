@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <title>לוח שנה</title>
   <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.css" rel="stylesheet">
+  <link rel="icon" href="nomicon.png" type="image/x-icon">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -59,11 +60,76 @@
       </div>        
 
         <ul id="task-list"></ul>
-      
-
-    </div>
+      </div>
   </div>
   
+
+  <div id="daily-task-modal" class="hidden">
+    <div id="daily-task-modal-content">
+      <input type="hidden" id="daily-task-edit-key" />
+      <h3 id="daily-task-modal-title" style="margin-top: 0;">הוספת משימה יומית</h3>
+  
+      <label for="daily-task-branch">סניף:</label>
+      <select id="daily-task-branch" style="width: 100%;">
+        <option>הרצליה</option>
+        <option>ראש העין</option>
+        <option>ראשון לציון</option>
+      </select>
+  
+      <div class="dropdown-multiselect">
+        <div id="daily-shift-dropdown-toggle">בחר עובדים ▼</div>
+        <div id="daily-shift-checkboxes" class="dropdown-options hidden"></div>
+      </div>
+  
+      <label for="daily-task-desc">תיאור משימה:</label>
+      <textarea id="daily-task-desc" style="width: 100%;"></textarea>
+  
+      <label for="daily-task-hour">שעה:</label>
+      <div id="daily-task-time-container" style="display:flex; gap:4px; margin-bottom:8px;">
+        <input
+        id="daily-task-minute"
+        type="number"
+        min="0"
+        max="59"
+        placeholder="דקה"
+        style="width: 60px;"
+        required
+      />
+  <span style="align-self:center;">:</span>
+        <input
+          id="daily-task-hour"
+          type="number"
+          min="0"
+          max="23"
+          placeholder="שעה"
+          style="width: 60px;"
+          required
+        />
+      </div>
+      
+      
+      <label for="daily-task-stage">שלב:</label>
+      <select id="daily-task-stage" style="width: 100%;">
+        <option>פתיחה</option>
+        <option>שוטף</option>
+        <option>סגירה</option>
+      </select>
+  
+      <label for="daily-task-priority">דחיפות:</label>
+      <select id="daily-task-priority" style="width: 100%;">
+        <option>נמוך</option>
+        <option selected>רגיל</option>
+        <option>דחוף</option>
+      </select>
+  
+      <div style="margin-top: 10px; display: flex; justify-content: space-between;">
+        <button id="daily-task-save">שמור</button>
+        <button onclick="document.getElementById('daily-task-modal').classList.add('hidden')">בטל</button>
+        <button id="daily-task-delete">מחק משימה</button>
+      </div>
+    </div>
+  </div>
+
 
   <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js"></script>
   <script src="scripts.js"></script>
