@@ -1,3 +1,9 @@
+const AUTH_STORAGE_KEY = 'calendar_auth_employee';
+const OTHER_KEY = 'calendar_auth_admin';
+const IS_EMPLOYEE = true;
+localStorage.removeItem(OTHER_KEY); // Clear admin cache if present
+    
+    
     console.log("Script loaded");
 
    //const BASE_URL = 'http://localhost:5000'; // local backend
@@ -71,6 +77,20 @@
       return Array.from({ length }, () => letters[Math.floor(Math.random() * letters.length)]).join('');
     }
 
+    function formatDate(isoStr) {
+      const date = new Date(isoStr);
+      const options = {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        weekday: 'long',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+      };
+      return date.toLocaleString('he-IL', options);
+    }
+
 // Show login modal until authenticated
 let AUTHENTICATED = false;
 
@@ -79,42 +99,6 @@ document.addEventListener('DOMContentLoaded', function() {
   const loginBtn = document.getElementById('login-btn');
   const passwordInput = document.getElementById('admin-password');
   const loginError = document.getElementById('login-error');
-
-  function tryLogin() {
-    const password = passwordInput.value.trim();
-    if (!password) {
-      loginError.textContent = 'נא להזין סיסמה';
-      loginError.style.display = 'block';
-      return;
-    }
-    fetch(`${BASE_URL}/employee_auth`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ password })
-    })
-    .then(res => res.json())
-    .then(data => {
-      if (data.ok) {
-        loginModal.style.display = 'none';
-        AUTHENTICATED = true;
-        // Now run your regular app initialization
-        if (typeof startApp === 'function') startApp();
-      } else {
-        loginError.textContent = data.reason === 'Wrong password' ? 'סיסמה שגויה' : 'שגיאה לא ידועה';
-        loginError.style.display = 'block';
-        passwordInput.value = '';
-      }
-    })
-    .catch(() => {
-      loginError.textContent = 'שגיאת רשת';
-      loginError.style.display = 'block';
-    });
-  }
-
-  loginBtn.onclick = tryLogin;
-  passwordInput.addEventListener('keydown', function(e) {
-    if (e.key === 'Enter') tryLogin();
-  });
 
   // Prevent showing the app if not authenticated
   window.startApp = function() {
@@ -1075,24 +1059,79 @@ document.addEventListener('DOMContentLoaded', function() {
         
       });
   };
+
+  // --- Auto-login using cache ---
+  const cache = localStorage.getItem(AUTH_STORAGE_KEY);
+  let cached = null;
+  if (cache) {
+    try { cached = JSON.parse(cache); } catch {}
+  }
+  if (cached && cached.password && cached.expires && cached.expires > Date.now()) {
+    fetch(`${BASE_URL}/employee_auth`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: cached.password })
+    })
+    .then(res => res.json())
+    .then(data => {
+      if (data.ok) {
+        loginModal.style.display = 'none';
+        AUTHENTICATED = true;
+        if (typeof startApp === 'function') startApp();
+      } else {
+        localStorage.removeItem(AUTH_STORAGE_KEY);
+        // show login modal as usual
+      }
+    })
+    .catch(() => {
+      localStorage.removeItem(AUTH_STORAGE_KEY);
+    });
+    return; // Don't show login modal while trying auto-login
+  }
+  // --- End auto-login logic ---
+
+  function tryLogin() {
+    const password = passwordInput.value.trim();
+    if (!password) {
+      loginError.textContent = 'נא להזין סיסמה';
+      loginError.style.display = 'block';
+      return;
+    }
+    fetch(`${BASE_URL}/employee_auth`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password })
+    })
+    .then(res => res.json())
+    .then(data => {
+      if (data.ok) {
+        // Cache for 10 minutes
+        localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({
+          password: password,
+          expires: Date.now() + 10 * 60 * 1000
+        }));
+        loginModal.style.display = 'none';
+        AUTHENTICATED = true;
+        if (typeof startApp === 'function') startApp();
+      } else {
+        loginError.textContent = data.reason === 'Wrong password' ? 'סיסמה שגויה' : 'שגיאה לא ידועה';
+        loginError.style.display = 'block';
+        passwordInput.value = '';
+        localStorage.removeItem(AUTH_STORAGE_KEY);
+      }
+    })
+    .catch(() => {
+      loginError.textContent = 'שגיאת רשת';
+      loginError.style.display = 'block';
+      localStorage.removeItem(AUTH_STORAGE_KEY);
+    });
+  }
+
+  loginBtn.onclick = tryLogin;
+  passwordInput.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') tryLogin();
+  });
+
+
 });
 
-
-
-    ///window.addEventListener('DOMContentLoaded', () => {
- ///
-    ///});
-
-    function formatDate(isoStr) {
-      const date = new Date(isoStr);
-      const options = {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-        weekday: 'long',
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false
-      };
-      return date.toLocaleString('he-IL', options);
-    }
