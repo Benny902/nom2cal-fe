@@ -69,8 +69,8 @@
       <input type="hidden" id="daily-task-edit-key" />
       <h3 id="daily-task-modal-title" style="margin-top: 0;">הוספת משימה יומית</h3>
   
-      <label for="daily-task-branch">סניף:</label>
-      <select id="daily-task-branch" style="width: 100%;">
+      <label for="daily-task-branch">בחר סניף:</label>
+      <select id="daily-task-branch" placeholder="בחר סניף:" style="width: 100%;">
         <option>הרצליה</option>
         <option>ראש העין</option>
         <option>ראשון לציון</option>
@@ -80,15 +80,14 @@
         <div id="daily-shift-dropdown-toggle">בחר עובדים ▼</div>
         <div id="daily-shift-checkboxes" class="dropdown-options hidden"></div>
       </div>
-  
-      <label for="daily-task-desc">תיאור משימה:</label>
+
         <div class="dropdown-multiselect">
-          <div id="daily-template-dropdown-toggle">בחר תבנית ▼</div>
+          <div id="daily-template-dropdown-toggle">הוסף תבנית + (אפשר גם לרשום ידני) ▼</div>
           <div id="daily-template-options" class="dropdown-options hidden"></div>
         </div>
-        <textarea id="daily-task-desc" style="width: 100%;"></textarea>
+        <textarea id="daily-task-desc" placeholder="תיאור משימה:" style="width: 100%;"></textarea>
   
-      <label for="daily-task-hour">שעה:</label>
+      <label for="daily-task-hour">בחר זמן:</label>
       <div id="daily-task-time-container" style="display:flex; gap:4px; margin-bottom:8px;">
         <input
         id="daily-task-minute"
