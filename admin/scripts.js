@@ -318,7 +318,7 @@ document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('daily-task-desc').value = task.desc || '';
             const descEl = document.getElementById('daily-task-desc');
             descEl.style.height = "auto"; // Reset height first!
-            descEl.style.height = descEl.scrollHeight + "px";
+            //descEl.style.height = descEl.scrollHeight + "20px";
             const [hh, mm] = getTimeFromISO(task.manual_todo_time || task.todo_time).split(':');
             document.getElementById('daily-task-hour').value   = hh;
             document.getElementById('daily-task-minute').value = mm;
@@ -383,7 +383,7 @@ document.addEventListener('DOMContentLoaded', function() {
                   label.addEventListener('click', () => {
                     const descEl = document.getElementById('daily-task-desc');
                     descEl.style.height = "auto"; // Reset height first!
-                    descEl.style.height = descEl.scrollHeight + "px";
+                    //descEl.style.height = descEl.scrollHeight + "20px";
                     const templates   = allTemplates[key] || [];
                     const templateDesc= templates[0]?.desc;
 
@@ -975,7 +975,7 @@ document.addEventListener('DOMContentLoaded', function() {
           document.getElementById('daily-task-desc').value     = '';
           const descEl = document.getElementById('daily-task-desc');
           descEl.style.height = "auto"; // Reset height first!
-          descEl.style.height = descEl.scrollHeight + "px";
+          //descEl.style.height = descEl.scrollHeight + "20px";
           document.getElementById('daily-task-hour').value   = '';
           document.getElementById('daily-task-minute').value = '';            
           document.getElementById('daily-task-priority').value = 'רגיל';
@@ -1036,7 +1036,7 @@ document.addEventListener('DOMContentLoaded', function() {
               label.addEventListener('click', () => {
                 const descEl = document.getElementById('daily-task-desc');
                 descEl.style.height = "auto"; // Reset height first!
-                descEl.style.height = descEl.scrollHeight + "px";
+                //descEl.style.height = descEl.scrollHeight + "20px";
                 const templates   = allTemplates[key] || [];
                 const templateDesc= templates[0]?.desc;
 
@@ -1070,7 +1070,8 @@ document.addEventListener('DOMContentLoaded', function() {
           const desc = document.getElementById('daily-task-desc').value.trim();
           const descEl = document.getElementById('daily-task-desc');
           descEl.style.height = "auto"; // Reset height first!
-          descEl.style.height = descEl.scrollHeight + "px";
+          descEl.style.height = descEl.Height + "40px";
+          //descEl.style.height = descEl.scrollHeight + "20px";
           const hh = parseInt(document.getElementById('daily-task-hour').value, 10);
           const mm = parseInt(document.getElementById('daily-task-minute').value, 10);
           const isoTime = parseManualTimeToFullISO(`${hh}:${mm}`, date);
