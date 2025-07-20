@@ -329,6 +329,51 @@
     }
   
     fetchAllTasks();
+
+
+    let currentSort = { index: -1, ascending: true };
+
+    document.querySelectorAll("#task-table thead th").forEach((th, index) => {
+    th.style.cursor = "pointer";
+    th.addEventListener("click", () => {
+        const ascending = (currentSort.index === index) ? !currentSort.ascending : true;
+        currentSort = { index, ascending };
+        sortTableByColumn(index, ascending);
+    });
+    });
+
+    function sortTableByColumn(index, ascending) {
+    const keyMap = ['event_key', 'task_desc', 'shift_assignment', 'done', 'manual_todo_time'];
+
+    const key = keyMap[index];
+    if (!key) return;
+
+    filteredTasks.sort((a, b) => {
+        let valA = a[key] || '';
+        let valB = b[key] || '';
+
+        // handle parsed values
+        if (key === 'shift_assignment') {
+        valA = parseShift(valA);
+        valB = parseShift(valB);
+        }
+        if (key === 'done') {
+        valA = parseDone(a.done);
+        valB = parseDone(b.done);
+        }
+        if (key === 'manual_todo_time') {
+        valA = valA?.trim() ? formatDateToIsrael(valA) : 'שוטף';
+        valB = valB?.trim() ? formatDateToIsrael(valB) : 'שוטף';
+        }
+
+        return ascending
+        ? valA.localeCompare(valB, 'he', { numeric: true })
+        : valB.localeCompare(valA, 'he', { numeric: true });
+    });
+
+    renderTable(filteredTasks);
+    }
+
   </script>
   
 
