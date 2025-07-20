@@ -1140,7 +1140,7 @@ document.addEventListener('DOMContentLoaded', function() {
               branch: branch
             })
           }).then(() => {
-            alert("המשימה נמחקה");
+            console.log("המשימה נמחקה");
             location.reload();
           }).catch(() => {
             alert("שגיאה במחיקת המשימה");
