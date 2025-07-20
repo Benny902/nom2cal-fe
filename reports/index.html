@@ -1,0 +1,336 @@
+<!DOCTYPE html dir="rtl">
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <title>דו"חות משימות</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 40px;
+      background-color: #f5f5f5;
+    }
+    h1 { text-align: center; margin-bottom: 30px; color: #333; }
+
+    table {
+      width: 90%;
+      border-collapse: collapse;
+      background-color: #fff;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+      margin: auto;
+    }
+    th, td { padding: 12px 15px; border: 1px solid #ddd; text-align: right; }
+    th { background-color: #4CAF50; color: white; }
+    tr:nth-child(even) { background-color: #f2f2f2; }
+
+    .btn {
+      padding: 8px 18px;
+      font-size: 16px;
+      border: none;
+      border-radius: 4px;
+      background: #4CAF50;
+      color: white;
+      cursor: pointer;
+    }
+    .btn.export { background: #1976d2; }
+    .btn.pdf { background: #d32f2f; }
+
+    .date-input { font-size: 16px; padding: 4px 8px; }
+
+    .controls-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 16px;
+      margin-bottom: 22px;
+      direction: rtl;
+    }
+
+    .controls-group {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .controls-container {
+      width: 90%;
+      margin: auto;
+    }
+
+    @media (max-width: 700px) {
+      .controls-row {
+        flex-direction: column;
+        align-items: stretch;
+      }
+      .controls-group {
+        justify-content: center;
+        flex-wrap: wrap;
+      }
+    }
+
+    @media print {
+      .controls-container,
+      .btn.export,
+      .btn.pdf,
+      #print-btn {
+        display: none !important;
+      }
+    }
+  </style>
+  <link rel="icon" href="../nomicon.png" type="image/x-icon">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+</head>
+<body>
+
+  <h1>דו"חות משימות</h1>
+
+  <div class="controls-container">
+    <div class="controls-row">
+      <div class="controls-group">
+        <button class="btn" id="day-btn">היום</button>
+        <button class="btn" id="week-btn">השבוע</button>
+        <button class="btn" id="month-btn">החודש</button>
+      </div>
+
+      <div class="controls-group">
+        <button class="btn pdf" id="print-btn">הדפס PDF</button>
+        <button class="btn export" id="export-xlsx">ייצא לאקסל</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="controls-container">
+    <div class="controls-row">
+      <div class="controls-group">
+        <span>או סינון לפי טווח - מתאריך: <input type="date" class="date-input" id="from-date"></span>
+        <span>עד: <input type="date" class="date-input" id="to-date"></span>
+        <button class="btn" id="custom-btn">הצג טווח</button>
+      </div>
+    </div>
+  </div>
+
+  <table id="task-table">
+    <thead>
+        <tr>
+          <th>מזהה אירוע</th>
+          <th>תיאור משימה</th>
+     <!-- <th>שלב</th> -->
+     <!-- <th>עדיפות</th> -->
+          <th>עובד/ים</th>
+     <!-- <th>תבנית</th> -->
+     <!-- <th>זמן יעד</th> -->
+          <th>בוצע</th>
+          <th>שעה לביצוע</th>
+        </tr>
+      </thead>      
+    <tbody></tbody>
+  </table>
+
+  <script>
+    const BASE_URL = 'https://nom2cal.onrender.com';
+    let allTasks = [];
+    let filteredTasks = [];
+  
+    const tbody = document.querySelector('#task-table tbody');
+    const fromDateInput = document.getElementById('from-date');
+    const toDateInput = document.getElementById('to-date');
+  
+    function toLocalDateInputValue(date) {
+      const d = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+      return d.toISOString().slice(0, 10);
+    }
+  
+    function setInitialDateInputs() {
+      const today = new Date();
+      fromDateInput.value = toLocalDateInputValue(today);
+      toDateInput.value = toLocalDateInputValue(today);
+    }
+  
+    function parseShift(raw) {
+        try {
+            if (!raw || raw === "none") return "";
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed)) {
+            return parsed.join(", ");
+            } else if (typeof parsed === "string") {
+            return parsed;
+            }
+            return "";
+        } catch {
+            return raw;
+        }
+    }
+
+    function getDateRangeSuffix() {
+        const from = document.getElementById('from-date')?.value;
+        const to = document.getElementById('to-date')?.value;
+
+        if (from && to) {
+            return `_${from}_עד_${to}`;
+        } else if (from) {
+            return `_${from}_ואילך`;
+        } else if (to) {
+            return `_עד_${to}`;
+        }
+        return '';
+    }
+
+    function formatDateToIsrael(isoStr) {
+        if (!isoStr) return '';
+        try {
+            const date = new Date(isoStr);
+            const israelTime = new Date(date.toLocaleString("en-US", { timeZone: "Asia/Jerusalem" }));
+            const yyyy = israelTime.getFullYear();
+            const mm = String(israelTime.getMonth() + 1).padStart(2, '0');
+            const dd = String(israelTime.getDate()).padStart(2, '0');
+            const hh = String(israelTime.getHours()).padStart(2, '0');
+            const mi = String(israelTime.getMinutes()).padStart(2, '0');
+            return `${yyyy}-${mm}-${dd} ${hh}:${mi}`;
+        } catch {
+            return isoStr;
+        }
+    }
+
+    function parseDone(value) {
+        if (!value || value.toString().toLowerCase() === 'false') return 'לא';
+
+        if (value.toString().includes('T')) {
+            const date = new Date(value);
+            if (!isNaN(date)) {
+            const local = new Date(date.getTime() + 3 * 60 * 60 * 1000); // Adjust to Israel time (UTC+3)
+            const formatted = `${local.toISOString().slice(0, 10)} ${local.toISOString().slice(11, 16)}`;
+            return `כן (${formatted})`;
+            }
+        }
+
+        return value; // fallback
+    }
+
+    function renderTable(data) {
+      tbody.innerHTML = '';
+      if (data.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;color:#888;">אין משימות להצגה</td></tr>`;
+        return;
+      }
+  
+      data.forEach(task => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td>${task.event_key || ''}</td>
+          <td>${task.task_desc || ''}</td>
+    <!--  <td>${task.task_stage || ''}</td> -->
+    <!--  <td>${task.task_priority || ''}</td> -->
+          <td>${parseShift(task.shift_assignment)}</td>
+    <!--  <td>${task.template_name || ''}</td> -->
+    <!--  <td>${task.todo_time || ''}</td> -->
+          <td>${parseDone(task.done)}</td>
+          <td>${task.manual_todo_time?.trim() ? formatDateToIsrael(task.manual_todo_time) : 'שוטף'}</td>
+        `;
+        tbody.appendChild(row);
+      });
+    }
+  
+    function parseDateFromTask(task) {
+        const key = task.event_key || '';
+        const match = key.match(/\d{4}-\d{2}-\d{2}/); // finds YYYY-MM-DD
+        if (!match) return null;
+        try {
+            const date = new Date(match[0]);
+            return isNaN(date) ? null : date;
+        } catch {
+            return null;
+        }
+    }
+
+    function applyFilter(type, from = null, to = null) {
+      let tasks = [];
+      const today = new Date();
+      today.setHours(0,0,0,0);
+  
+      if (type === 'day') {
+        tasks = allTasks.filter(task => {
+          const d = parseDateFromTask(task);
+          if (!d) return false;
+          d.setHours(0,0,0,0);
+          return d.getTime() === today.getTime();
+        });
+        fromDateInput.value = toLocalDateInputValue(today);
+        toDateInput.value = toLocalDateInputValue(today);
+      }
+      else if (type === 'week') {
+        const sunday = new Date(today);
+        sunday.setDate(today.getDate() - today.getDay());
+        const saturday = new Date(sunday);
+        saturday.setDate(sunday.getDate() + 7);
+        tasks = allTasks.filter(task => {
+          const d = parseDateFromTask(task);
+          return d && d >= sunday && d <= saturday;
+        });
+        fromDateInput.value = toLocalDateInputValue(sunday);
+        toDateInput.value = toLocalDateInputValue(saturday);
+      }
+      else if (type === 'month') {
+        const first = new Date(today.getFullYear(), today.getMonth(), 1);
+        const last = new Date(today.getFullYear(), today.getMonth() + 1, 0, 23, 59, 59);
+        tasks = allTasks.filter(task => {
+          const d = parseDateFromTask(task);
+          return d && d >= first && d <= last;
+        });
+        fromDateInput.value = toLocalDateInputValue(first);
+        toDateInput.value = toLocalDateInputValue(last);
+      }
+      else if (type === 'custom' && from && to) {
+        const fromD = new Date(from);
+        const toD = new Date(to);
+        tasks = allTasks.filter(task => {
+          const d = parseDateFromTask(task);
+          return d && d >= fromD && d <= toD;
+        });
+      }
+  
+      filteredTasks = tasks;
+      renderTable(tasks);
+    }
+  
+    document.getElementById('day-btn').onclick = () => applyFilter('day');
+    document.getElementById('week-btn').onclick = () => applyFilter('week');
+    document.getElementById('month-btn').onclick = () => applyFilter('month');
+    document.getElementById('custom-btn').onclick = () => {
+      if (fromDateInput.value && toDateInput.value) {
+        applyFilter('custom', fromDateInput.value, toDateInput.value);
+      }
+    };
+  
+    document.getElementById('export-xlsx').onclick = function() {
+      if (!filteredTasks.length) return;
+      const table = document.getElementById('task-table');
+      const wb = XLSX.utils.table_to_book(table, { sheet: "Tasks" });
+      const suffix = getDateRangeSuffix();
+      XLSX.writeFile(wb, `tasks${suffix}.xlsx`);
+    };
+  
+    document.getElementById('print-btn').onclick = () => window.print();
+  
+    async function fetchAllTasks() {
+      try {
+        const res = await fetch(`${BASE_URL}/get_all_tasks`);
+        const raw = await res.json();
+  
+        if (!Array.isArray(raw)) throw new Error("Invalid response");
+  
+        allTasks = raw;
+        console.log("Fetched all tasks:", allTasks);
+  
+        setInitialDateInputs();
+        applyFilter('day');
+      } catch (e) {
+        console.error("שגיאה בעת טעינת המשימות:", e);
+      }
+    }
+  
+    fetchAllTasks();
+  </script>
+  
+
+</body>
+</html>
