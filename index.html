@@ -153,7 +153,15 @@
     </div>
   </div>
 
+  <script>
+    const path = window.location.pathname;
 
+    if (path.includes('admin')) {
+      document.getElementById('adminBtn')?.classList.add('highlight');
+    } else {
+      document.getElementById('employeeBtn')?.classList.add('highlight');
+    }
+  </script>
   <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js"></script>
   <script src="scripts.js"></script>
 </body>
