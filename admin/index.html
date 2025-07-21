@@ -13,6 +13,10 @@
     <button id="employeeBtn" onclick="location.href='../'" style="padding:6px 18px;">עובד</button>
   </div>
 
+  <div id="dark-mode-toggle" style="position: absolute; top: 10px; right: 10px; z-index: 10000;">
+    <button onclick="toggleDarkMode()" style="padding:6px 18px;">🌓 מצב כהה</button>
+  </div>
+
   <div id="login-modal" style="position:fixed;inset:0;z-index:99999;background:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;">
     <div id="nav-switch" style="position: absolute; top: 10px; left: 10px; z-index: 10000;">
       <button onclick="location.href=''" style="padding:6px 18px;margin-left:8px;">אדמין</button>
@@ -156,6 +160,20 @@
       document.getElementById('adminBtn')?.classList.add('highlight');
     } else {
       document.getElementById('employeeBtn')?.classList.add('highlight');
+    }
+
+    let darkMode = false;
+    function toggleDarkMode() {
+      darkMode = !darkMode;
+
+      document.body.style.backgroundColor = darkMode ? '#717171' : '#f1f3f4';
+
+      const calendar = document.getElementById('calendar');
+      if (calendar) {
+        calendar.style.background = darkMode ? '#918f8d' : 'white';
+      }
+
+      document.querySelector('#dark-mode-toggle button').textContent = darkMode ? '🌞 מצב בהיר' : '🌓 מצב כהה';
     }
   </script>
 
