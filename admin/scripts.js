@@ -48,7 +48,34 @@ localStorage.removeItem(OTHER_KEY); // Clear employee cache if present
       '': {
         border: 'gold',
         background: '#fffde7' // pale yellow
-      }
+      },
+
+      'קייטנה - פתיחה': {
+        border: 'green',
+        background: '#e8f5e9' // pale green
+      },
+      'קייטנה - שוטף': {
+        border: 'orange',
+        background: '#fff3e0' // pale orange
+      },
+      'קייטנה - סגירה': {
+        border: 'red',
+        background: '#ffebee' // pale red
+      },
+
+      'קבוצה - פתיחה': {
+        border: 'green',
+        background: '#e8f5e9' // pale green
+      },
+      'קבוצה - שוטף': {
+        border: 'orange',
+        background: '#fff3e0' // pale orange
+      },
+      'קבוצה - סגירה': {
+        border: 'red',
+        background: '#ffebee' // pale red
+      },
+
     };
 
     function getFormattedManualTime(manualTime) {
@@ -447,8 +474,21 @@ document.addEventListener('DOMContentLoaded', function() {
           templateDropdownToggle.onclick = () => {
             templateCheckboxes.classList.toggle('hidden');
           };
-          
-          const orderedTemplateNames = ['פתיחה', 'מעטפת', 'שוטף', 'סגירה'];
+
+          const orderedTemplateNames = [
+            'פתיחה',
+            'מעטפת',
+            'שוטף',
+            'סגירה',
+
+            'קייטנה - פתיחה',
+            'קייטנה - שוטף',
+            'קייטנה - סגירה',
+
+            'קבוצה - פתיחה',
+            'קבוצה - שוטף',
+            'קבוצה - סגירה'
+          ];
           orderedTemplateNames.forEach(templateName => {
             if (!(templateName in templates)) return;          
             const label = document.createElement('label');
@@ -545,8 +585,18 @@ document.addEventListener('DOMContentLoaded', function() {
         function renderTasks(taskArray, eventStartStr, eventEndStr, selectedTemplateNames) {
           taskListEl.innerHTML = '';
 
-        
-          const orderedTemplateNames = ['פתיחה', 'מעטפת', 'שוטף', 'סגירה'];
+          const orderedTemplateNames = [
+            'פתיחה',
+            'מעטפת',
+            'שוטף',
+            'סגירה',
+            'קייטנה - פתיחה',
+            'קייטנה - שוטף',
+            'קייטנה - סגירה',
+            'קבוצה - פתיחה',
+            'קבוצה - שוטף',
+            'קבוצה - סגירה'
+          ];
           const stageOrder = { 'פתיחה': 1, 'מעטפת': 2, 'שוטף': 3, 'סגירה': 4 };
           
           const enrichedTasks = taskArray
