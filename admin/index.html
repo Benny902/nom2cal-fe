@@ -162,19 +162,30 @@
       document.getElementById('employeeBtn')?.classList.add('highlight');
     }
 
-    let darkMode = false;
-    function toggleDarkMode() {
-      darkMode = !darkMode;
+    // Load saved preference from localStorage
+    let darkMode = localStorage.getItem('darkMode') === 'true';
 
-      document.body.style.backgroundColor = darkMode ? '#717171' : '#f1f3f4';
+    function applyDarkModeStyles(isDark) {
+      document.body.style.backgroundColor = isDark ? '#717171' : '#f1f3f4';
 
       const calendar = document.getElementById('calendar');
       if (calendar) {
-        calendar.style.background = darkMode ? '#918f8d' : 'white';
+        calendar.style.background = isDark ? '#918f8d' : 'white';
       }
 
-      document.querySelector('#dark-mode-toggle button').textContent = darkMode ? '🌞 מצב בהיר' : '🌓 מצב כהה';
+      // Update button text
+      document.querySelector('#dark-mode-toggle button').textContent =
+        isDark ? '🌞 מצב בהיר' : '🌓 מצב כהה';
     }
+
+    function toggleDarkMode() {
+      darkMode = !darkMode;
+      localStorage.setItem('darkMode', darkMode);
+      applyDarkModeStyles(darkMode);
+    }
+
+    // Apply mode on initial load
+    applyDarkModeStyles(darkMode);
   </script>
 
   <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js"></script>
