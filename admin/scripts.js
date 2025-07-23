@@ -28,56 +28,6 @@ localStorage.removeItem(OTHER_KEY); // Clear employee cache if present
 
     let calendar;
 
-    const templateStyles = {
-      'פתיחה': {
-        border: 'green',
-        background: '#e8f5e9' // pale green
-      },
-      'מעטפת': {
-        border: 'purple',
-        background: '#cdb8d1' // pale purple
-      },
-      'שוטף': {
-        border: 'orange',
-        background: '#fff3e0' // pale orange
-      },
-      'סגירה': {
-        border: 'red',
-        background: '#ffebee' // pale red
-      },
-      '': {
-        border: 'gold',
-        background: '#fffde7' // pale yellow
-      },
-
-      'קייטנה - פתיחה': {
-        border: 'green',
-        background: '#e8f5e9' // pale green
-      },
-      'קייטנה - שוטף': {
-        border: 'orange',
-        background: '#fff3e0' // pale orange
-      },
-      'קייטנה - סגירה': {
-        border: 'red',
-        background: '#ffebee' // pale red
-      },
-
-      'קבוצה - פתיחה': {
-        border: 'green',
-        background: '#e8f5e9' // pale green
-      },
-      'קבוצה - שוטף': {
-        border: 'orange',
-        background: '#fff3e0' // pale orange
-      },
-      'קבוצה - סגירה': {
-        border: 'red',
-        background: '#ffebee' // pale red
-      },
-
-    };
-
     function getFormattedManualTime(manualTime) {
       if (!manualTime || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(manualTime)) return null;
     
@@ -475,22 +425,13 @@ document.addEventListener('DOMContentLoaded', function() {
             templateCheckboxes.classList.toggle('hidden');
           };
 
-          const orderedTemplateNames = [
-            'פתיחה',
-            'מעטפת',
-            'שוטף',
-            'סגירה',
+          // Dynamically get unique template names from the templates object, ordered as they appear
+          const orderedTemplateNames = Object.keys(templates).filter(
+            name => !name.includes('daily') && !name.includes('יומית')
+          );
 
-            'קייטנה - פתיחה',
-            'קייטנה - שוטף',
-            'קייטנה - סגירה',
 
-            'קבוצה - פתיחה',
-            'קבוצה - שוטף',
-            'קבוצה - סגירה'
-          ];
           orderedTemplateNames.forEach(templateName => {
-            if (!(templateName in templates)) return;          
             const label = document.createElement('label');
             const checkbox = document.createElement('input');
             checkbox.type = 'checkbox';
@@ -520,9 +461,6 @@ document.addEventListener('DOMContentLoaded', function() {
               renderTasks(storedTasks, info.event.startStr, info.event.endStr, selectedTemplateNames);
               saveToServer();
             });
-            
-            
-            
           
             label.appendChild(checkbox);
             label.append(` ${templateName}`);
@@ -583,22 +521,20 @@ document.addEventListener('DOMContentLoaded', function() {
         }          
 
         function renderTasks(taskArray, eventStartStr, eventEndStr, selectedTemplateNames) {
-          taskListEl.innerHTML = '';
+            taskListEl.innerHTML = '';
 
-          const orderedTemplateNames = [
-            'פתיחה',
-            'מעטפת',
-            'שוטף',
-            'סגירה',
-            'קייטנה - פתיחה',
-            'קייטנה - שוטף',
-            'קייטנה - סגירה',
-            'קבוצה - פתיחה',
-            'קבוצה - שוטף',
-            'קבוצה - סגירה'
-          ];
+          // Dynamically get all unique template names from taskArray
+        const orderedTemplateNames = Array.from(
+          new Set(
+            taskArray
+              .map(t => t.template_name)
+              .filter(name => !!name && !name.includes('daily') && !name.includes('יומית'))
+          )
+        );
+
           const stageOrder = { 'פתיחה': 1, 'מעטפת': 2, 'שוטף': 3, 'סגירה': 4 };
-          
+
+          // Keep only manual tasks or template tasks known in data
           const enrichedTasks = taskArray
           .filter(t => t.source === 'manual' || orderedTemplateNames.includes(t.template_name))
           .map(t => {
@@ -606,18 +542,19 @@ document.addEventListener('DOMContentLoaded', function() {
             const name = t.template_name || t.task_stage || t.stage || '';
             return { ...t, template_name: name };
           });          
-          
+
           enrichedTasks.sort((a, b) => {
-            const stageA = a.template_name || a.stage || '';
-            const stageB = b.template_name || b.stage || '';
+            // Always sort by .stage, fallback to ''
+            const stageA = a.stage || '';
+            const stageB = b.stage || '';
             const stageDiff = (stageOrder[stageA] || 99) - (stageOrder[stageB] || 99);
             if (stageDiff !== 0) return stageDiff;
-          
-            // Use manual_todo_time if available
+
+            // If same stage, then by time
             const aTime = parseTodoTime(a.manual_todo_time || a.todo_time);
             const bTime = parseTodoTime(b.manual_todo_time || b.todo_time);
             return aTime - bTime;
-          });            
+          });
 
           function parseTodoTime(todo) {
             if (!todo || typeof todo !== 'string') return Infinity;
@@ -652,10 +589,8 @@ document.addEventListener('DOMContentLoaded', function() {
               t.todo_time === task.todo_time &&
               t.manual_todo_time === task.manual_todo_time
             );              
-            //const trueIndex = storedTasks.indexOf(task);
-            //const trueIndex = storedTasks.findIndex(t => t.desc === task.desc && t.stage === task.stage && t.priority === task.priority);
             const manualTimeStr = getFormattedManualTime(task.manual_todo_time);
-            const executionTime = manualTimeStr || getTaskExecutionTime(task.todo_time, eventStartStr, eventEndStr, task.template_name, selectedTemplateNames, '');              
+            const executionTime = manualTimeStr || getTaskExecutionTime(task.todo_time, eventStartStr, eventEndStr, task.template_name, selectedTemplateNames, '');
           
             const li = document.createElement('li');
             li.innerHTML = `
@@ -669,23 +604,23 @@ document.addEventListener('DOMContentLoaded', function() {
               </div>
               <div class="task-desc-text">${task.desc}</div>
             `;
-          
+
             const statusWrapper = document.createElement('div');
             statusWrapper.style.display = 'flex';
             statusWrapper.style.alignItems = 'center';
             statusWrapper.style.gap = '10px';
             statusWrapper.style.marginTop = '8px';
-          
+
             const statusEl = document.createElement('div');
             const doneTimestamp = typeof task.done === 'string' && task.done !== 'false' ? formatTime(task.done) : '';
             statusEl.textContent = task.done && task.done !== false
               ? `סטאטוס: בוצע - ${doneTimestamp}`
               : `סטאטוס: לא בוצע - `;
-            
+
             const toggleBtn = document.createElement('button');
             toggleBtn.textContent = task.done ? 'לחץ להחזיר ללא בוצע' : 'לחץ אם בוצע';
             toggleBtn.title = 'שנה סטאטוס משימה';
-          
+
             toggleBtn.onclick = () => {
               const now = new Date().toLocaleString('sv-SE', { timeZone: 'Asia/Jerusalem' }).replace(' ', 'T');
             
@@ -696,17 +631,14 @@ document.addEventListener('DOMContentLoaded', function() {
                 t.priority === task.priority &&
                 (t.template_name || '') === (task.template_name || '')
               );
-            
               if (trueIndex !== -1) {
                 const updatedTask = storedTasks[trueIndex];
-            
                 // Toggle value
                 if (!updatedTask.done || updatedTask.done === false) {
                   updatedTask.done = now;
                 } else {
                   updatedTask.done = false;
                 }
-            
                 // Immediately re-render after change
                 renderTasks(storedTasks, eventStartStr, eventEndStr, selectedTemplateNames);
                 saveToServer();
@@ -723,8 +655,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 }).then(r => r.json()).then(console.log);
               }
             };
-                     
-            
+
             function formatTime(isoStr) {
               const date = new Date(isoStr);
               return date.toLocaleTimeString('he-IL', {
@@ -737,18 +668,25 @@ document.addEventListener('DOMContentLoaded', function() {
             statusWrapper.appendChild(statusEl);
             statusWrapper.appendChild(toggleBtn);
             li.appendChild(statusWrapper);
-          
-            const template = task.template_name || '';
-            const styles = templateStyles[template] || { border: 'gray', background: '#f5f5f5' };
-            li.style.backgroundColor = styles.background;
-            li.style.border = `3px solid ${styles.border}`;              
+
+            // Color by stage (always)
+            const stageColors = {
+              'פתיחה':   { border: 'green',   background: '#e8f5e9' },
+              'מעטפת':   { border: 'purple',  background: '#cdb8d1' },
+              'שוטף':    { border: 'orange',  background: '#fff3e0' },
+              'סגירה':   { border: 'red',     background: '#ffebee' }
+            };
+            const stageVal = task.stage || '';
+            const colors = stageColors[stageVal] || { border: 'gray', background: '#f5f5f5' };
+            li.style.backgroundColor = colors.background;
+            li.style.border = `3px solid ${colors.border}`;
             li.style.borderRadius = '6px';
             li.style.padding = '10px';
             li.style.marginBottom = '10px';
-          
+
             taskBox.appendChild(li);
           });
-          
+
           taskListEl.appendChild(taskBox);
                      
           taskListEl.querySelectorAll('.delete-task').forEach(btn => {
