@@ -346,7 +346,11 @@ document.addEventListener('DOMContentLoaded', function() {
             .then(r => r.json())
             .then(allTemplates => {
               Object.keys(allTemplates)
-                .filter(name => /^daily\d+$/.test(name))   // daily1…daily99
+                .filter(name =>
+                  /daily\d+/i.test(name) ||
+                  name.includes('יומי') ||
+                  name.includes('יומית')
+                )
                 .forEach(key => {
                   const label = document.createElement('label');
                   label.textContent = key;
@@ -427,7 +431,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
           // Dynamically get unique template names from the templates object, ordered as they appear
           const orderedTemplateNames = Object.keys(templates).filter(
-            name => !name.includes('daily') && !name.includes('יומית')
+            name => !name.includes('daily') && !name.includes('יומית')  && !name.includes('יומי')
           );
 
 
