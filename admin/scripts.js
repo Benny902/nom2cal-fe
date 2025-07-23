@@ -1014,7 +1014,11 @@ document.addEventListener('DOMContentLoaded', function() {
         .then(r => r.json())
         .then(allTemplates => {
           Object.keys(allTemplates)
-            .filter(name => /^daily\d+$/.test(name))   // daily1…daily99
+            .filter(name =>
+              /daily\d+/i.test(name) ||
+              name.includes('יומי') ||
+              name.includes('יומית')
+            )
             .forEach(key => {
               const label = document.createElement('label');
               label.textContent = key;
