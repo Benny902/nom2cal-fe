@@ -289,8 +289,10 @@ document.addEventListener('DOMContentLoaded', function() {
       
             document.getElementById('daily-task-desc').value = task.desc || '';
             const descEl = document.getElementById('daily-task-desc');
-            descEl.style.height = "auto"; // Reset height first!
-            //descEl.style.height = descEl.scrollHeight + "20px";
+            descEl.style.height = 'auto' // Always reset before measuring
+            const minHeight = 40
+            const neededHeight = Math.max(descEl.scrollHeight, minHeight)
+            descEl.style.height = neededHeight + 'px'
             const [hh, mm] = getTimeFromISO(task.manual_todo_time || task.todo_time).split(':');
             document.getElementById('daily-task-hour').value   = hh;
             document.getElementById('daily-task-minute').value = mm;
