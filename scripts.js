@@ -28,29 +28,6 @@ localStorage.removeItem(OTHER_KEY); // Clear admin cache if present
     
     let calendar;
 
-    const templateStyles = {
-      'פתיחה': {
-        border: 'green',
-        background: '#e8f5e9' // pale green
-      },
-      'מעטפת': {
-        border: 'purple',
-        background: '#cdb8d1' // pale purple
-      },
-      'שוטף': {
-        border: 'orange',
-        background: '#fff3e0' // pale orange
-      },
-      'סגירה': {
-        border: 'red',
-        background: '#ffebee' // pale red
-      },
-      '': {
-        border: 'gold',
-        background: '#fffde7' // pale yellow
-      }
-    };
-
     function getFormattedManualTime(manualTime) {
       if (!manualTime || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(manualTime)) return null;
     
@@ -532,9 +509,13 @@ document.addEventListener('DOMContentLoaded', function() {
             templateDropdownToggle.onclick = null;
           }
           
-          const orderedTemplateNames = ['פתיחה', 'מעטפת', 'שוטף', 'סגירה'];
+          // Dynamically get unique template names from the templates object, ordered as they appear
+          const orderedTemplateNames = Object.keys(templates).filter(
+            name => !name.includes('daily') && !name.includes('יומית')  && !name.includes('יומי')
+          );
+
           orderedTemplateNames.forEach(templateName => {
-            if (!(templateName in templates)) return;          
+            //if (!(templateName in templates)) return;          
             const label = document.createElement('label');
             const checkbox = document.createElement('input');
             checkbox.type = 'checkbox';
@@ -630,7 +611,15 @@ document.addEventListener('DOMContentLoaded', function() {
           taskListEl.innerHTML = '';
 
         
-          const orderedTemplateNames = ['פתיחה', 'מעטפת', 'שוטף', 'סגירה'];
+          // Dynamically get all unique template names from taskArray
+          const orderedTemplateNames = Array.from(
+            new Set(
+              taskArray
+                .map(t => t.template_name)
+                .filter(name => !!name && !name.includes('daily') && !name.includes('יומית'))
+            )
+          );
+
           const stageOrder = { 'פתיחה': 1, 'מעטפת': 2, 'שוטף': 3, 'סגירה': 4 };
           
           const enrichedTasks = taskArray
@@ -642,8 +631,8 @@ document.addEventListener('DOMContentLoaded', function() {
           });          
           
           enrichedTasks.sort((a, b) => {
-            const stageA = a.template_name || a.stage || '';
-            const stageB = b.template_name || b.stage || '';
+            const stageA = a.stage || '';
+            const stageB = b.stage || '';
             const stageDiff = (stageOrder[stageA] || 99) - (stageOrder[stageB] || 99);
             if (stageDiff !== 0) return stageDiff;
           
@@ -772,10 +761,17 @@ document.addEventListener('DOMContentLoaded', function() {
             statusWrapper.appendChild(toggleBtn);
             li.appendChild(statusWrapper);
           
-            const template = task.template_name || '';
-            const styles = templateStyles[template] || { border: 'gray', background: '#f5f5f5' };
-            li.style.backgroundColor = styles.background;
-            li.style.border = `3px solid ${styles.border}`;              
+            // Color by stage (always)
+            const stageColors = {
+              'פתיחה':   { border: 'green',   background: '#e8f5e9' },
+              'מעטפת':   { border: 'purple',  background: '#cdb8d1' },
+              'שוטף':    { border: 'orange',  background: '#fff3e0' },
+              'סגירה':   { border: 'red',     background: '#ffebee' }
+            };
+            const stageVal = task.stage || '';
+            const colors = stageColors[stageVal] || { border: 'gray', background: '#f5f5f5' };
+            li.style.backgroundColor = colors.background;
+            li.style.border = `3px solid ${colors.border}`;
             li.style.borderRadius = '6px';
             li.style.padding = '10px';
             li.style.marginBottom = '10px';
