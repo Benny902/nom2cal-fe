@@ -14,16 +14,16 @@ localStorage.removeItem(OTHER_KEY); // Clear admin cache if present
       'ראש העין': '#009688',
       'ראשון לציון': '#9c27b0',
       
-      // Arbox
-      "arbox-herzliya": "#3498db",   // Blue
-      "arbox-roshayin": "#8d6e63",   // Brown
-      "arbox-rishon": "#e74c3c"      // Red
+        // Arbox
+      "ארבוקס הרצליה": "#3498db",   // Blue
+      "ארבוקס ראש העין": "#8d6e63",   // Brown
+      "ארבוקס ראשון לציון": "#e74c3c"      // Red
     };
 
-    const calendarDisplayNames = {
-      "arbox-herzliya": "ארבוקס הרצליה",
-      "arbox-rishon": "ארבוקס ראשון לציון",
-      "arbox-roshayin": "ארבוקס ראש העין"
+    const calendarDisplayNames = { // not needed for now, lets see if asked to change name.
+      "ארבוקס הרצליה": "ארבוקס הרצליה",
+      "ארבוקס ראש העין": "ארבוקס ראש העין",
+      "ארבוקס ראשון לציון": "ארבוקס ראשון לציון"
     };
     
     let calendar;
@@ -289,7 +289,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const isDaily = info.event.title.startsWith('[משימה יומית]');
     const eventKey = isDaily
       ? `DAILY_${info.event.startStr.substring(0, 10)}_${info.event.extendedProps.calendar}`
-      : `${info.event.title}_${info.event.startStr}`;
+      : `${info.event.title}_${info.event.startStr}_${info.event.extendedProps.calendar}`;
   
       if (isDaily) {
         info.jsEvent.stopPropagation();
