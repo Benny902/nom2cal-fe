@@ -18,7 +18,7 @@
   </div>
 
   <div id="login-modal" style="position:fixed;inset:0;z-index:99999;background:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;">
-    <div id="nav-switch" style="position: absolute; top: 10px; left: 10px; z-index: 10000;">
+    <div id="nav-switch-modal" style="position: absolute; top: 10px; left: 10px; z-index: 10000;">
       <button onclick="location.href=''" style="padding:6px 18px;margin-left:8px;">אדמין</button>
       <button onclick="location.href='../'" style="padding:6px 18px;">עובד</button>
     </div>  
@@ -40,9 +40,7 @@
       <p id="modal-location"></p>
       <pre id="modal-description"></pre>  
 
-      
       <div class="modal-field">
-
         <div class="field-group">
           <label id="shift-label" for="shift-select">עובד משמרת:</label>
           <div class="dropdown-multiselect" id="shift-dropdown">
@@ -58,7 +56,6 @@
             <div id="template-checkboxes" class="dropdown-options hidden"></div>
           </div>                    
         </div>
-
       </div>        
 
       <div id="single-task-form">
@@ -79,75 +76,58 @@
         </div>
       </div>        
 
-        <ul id="task-list"></ul>
-      </div>
+      <ul id="task-list"></ul>
+    </div>
   </div>
   
-
   <div id="daily-task-modal" class="hidden">
     <div id="daily-task-modal-content">
       <input type="hidden" id="daily-task-edit-key" />
       <h3 id="daily-task-modal-title" style="margin-top: 0;">הוספת משימה יומית</h3>
-  
+
       <label for="daily-task-branch">בחר סניף:</label>
       <select id="daily-task-branch" style="width: 100%;">
         <option>הרצליה</option>
         <option>ראש העין</option>
         <option>ראשון לציון</option>
       </select>
-  
+
       <div class="dropdown-multiselect">
         <div id="daily-shift-dropdown-toggle">בחר עובדים ▼</div>
         <div id="daily-shift-checkboxes" class="dropdown-options hidden"></div>
       </div>
 
-        <div class="dropdown-multiselect">
-          <div id="daily-template-dropdown-toggle">הוסף תבנית + (אפשר גם לרשום ידני) ▼</div>
-          <div id="daily-template-options" class="dropdown-options hidden"></div>
-        </div>
-        <textarea id="daily-task-desc" placeholder="תיאור משימה:" style="width: 100%;"></textarea>
-  
+      <div class="dropdown-multiselect">
+        <div id="daily-template-dropdown-toggle">הוסף תבנית + (אפשר גם לרשום ידני) ▼</div>
+        <div id="daily-template-options" class="dropdown-options hidden"></div>
+      </div>
+
+      <textarea id="daily-task-desc" placeholder="תיאור משימה:" style="width: 100%;"></textarea>
+
       <label for="daily-task-hour">בחר זמן:</label>
       <div id="daily-task-time-container" style="display:flex; gap:4px; margin-bottom:8px;">
-        <input
-        id="daily-task-minute"
-        type="number"
-        min="0"
-        max="59"
-        placeholder="דקה"
-        style="width: 60px;"
-        required
-      />
-  <span style="align-self:center;">:</span>
-        <input
-          id="daily-task-hour"
-          type="number"
-          min="0"
-          max="23"
-          placeholder="שעה"
-          style="width: 60px;"
-          required
-        />
+        <input id="daily-task-minute" type="number" min="0" max="59" placeholder="דקה" style="width: 60px;" required />
+        <span style="align-self:center;">:</span>
+        <input id="daily-task-hour" type="number" min="0" max="23" placeholder="שעה" style="width: 60px;" required />
       </div>
-      
-      
+
       <label for="daily-task-stage">שלב:</label>
       <select id="daily-task-stage" style="width: 100%;">
         <option>פתיחה</option>
         <option>שוטף</option>
         <option>סגירה</option>
       </select>
-  
+
       <label for="daily-task-priority">דחיפות:</label>
       <select id="daily-task-priority" style="width: 100%;">
         <option>נמוך</option>
         <option selected>רגיל</option>
         <option>דחוף</option>
       </select>
-  
+
       <div style="margin-top: 10px; display: flex; justify-content: space-between;">
         <button id="daily-task-save">שמור</button>
-        <button onclick="document.getElementById('daily-task-modal').classList.add('hidden')">בטל</button>
+        <button id="daily-task-cancel">בטל</button>
         <button id="daily-task-delete">מחק משימה</button>
       </div>
     </div>
@@ -155,36 +135,26 @@
 
   <script>
     const path = window.location.pathname;
-
     if (path.includes('admin')) {
       document.getElementById('adminBtn')?.classList.add('highlight');
     } else {
       document.getElementById('employeeBtn')?.classList.add('highlight');
     }
 
-    // Load saved preference from localStorage
+    // Dark mode
     let darkMode = localStorage.getItem('darkMode') === 'true';
-
     function applyDarkModeStyles(isDark) {
       document.body.style.backgroundColor = isDark ? '#717171' : '#f1f3f4';
-
       const calendar = document.getElementById('calendar');
-      if (calendar) {
-        calendar.style.background = isDark ? '#918f8d' : 'white';
-      }
-
-      // Update button text
+      if (calendar) calendar.style.background = isDark ? '#918f8d' : 'white';
       document.querySelector('#dark-mode-toggle button').textContent =
         isDark ? '🌞 מצב בהיר' : '🌓 מצב כהה';
     }
-
     function toggleDarkMode() {
       darkMode = !darkMode;
       localStorage.setItem('darkMode', darkMode);
       applyDarkModeStyles(darkMode);
     }
-
-    // Apply mode on initial load
     applyDarkModeStyles(darkMode);
   </script>
 

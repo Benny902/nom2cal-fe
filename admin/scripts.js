@@ -1,123 +1,142 @@
+/* ========= config ========= */
 const AUTH_STORAGE_KEY = 'calendar_auth_admin';
 const OTHER_KEY = 'calendar_auth_employee';
 const IS_EMPLOYEE = false;
-localStorage.removeItem(OTHER_KEY); // Clear employee cache if present
+localStorage.removeItem(OTHER_KEY);
 
-    
-    console.log("Script loaded");
+console.log("Script loaded");
 
-   //const BASE_URL = 'http://localhost:5000'; // local backend
-   const BASE_URL = 'https://nom2cal.onrender.com'; // live backend
+// const BASE_URL = 'http://localhost:5000'; // local backend
+const BASE_URL = 'https://nom2cal.onrender.com'; // live backend
 
-    const calendarColors = {
-      'הרצליה': '#f57c00',
-      'ראש העין': '#009688',
-      'ראשון לציון': '#9c27b0',
+const calendarColors = {
+  'הרצליה': '#f57c00',
+  'ראש העין': '#009688',
+  'ראשון לציון': '#9c27b0',
+  "ארבוקס הרצליה": "#3498db",
+  "ארבוקס ראש העין": "#8d6e63",
+  "ארבוקס ראשון לציון": "#e74c3c"
+};
 
-        // Arbox
-      "ארבוקס הרצליה": "#3498db",   // Blue
-      "ארבוקס ראש העין": "#8d6e63",   // Brown
-      "ארבוקס ראשון לציון": "#e74c3c"      // Red
-    };
+const calendarDisplayNames = {
+  "ארבוקס הרצליה": "ארבוקס הרצליה",
+  "ארבוקס ראש העין": "ארבוקס ראש העין",
+  "ארבוקס ראשון לציון": "ארבוקס ראשון לציון"
+};
 
-    const calendarDisplayNames = { // not needed for now, lets see if asked to change name.
-      "ארבוקס הרצליה": "ארבוקס הרצליה",
-      "ארבוקס ראש העין": "ארבוקס ראש העין",
-      "ארבוקס ראשון לציון": "ארבוקס ראשון לציון"
-    };
+let calendar;
 
-    let calendar;
+/* ========= utils ========= */
 
-    function getFormattedManualTime(manualTime) {
-      if (!manualTime || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(manualTime)) return null;
-    
-      const date = new Date(manualTime);
-      return date.toLocaleTimeString('he-IL', {
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false,
-        timeZone: 'Asia/Jerusalem'
-      });
-    }    
+// Small toast (optional)
+function showError(msg) {
+  console.error(msg);
+}
 
-    function parseManualTimeToFullISO(hhmm, baseDateStr) {
-      if (!hhmm || !/^\d{1,2}:\d{2}$/.test(hhmm)) return '';
-      try {
-        const [h, m] = hhmm.split(':').map(Number);
-        const base = new Date(baseDateStr);
-        base.setHours(h, m, 0, 0);
-    
-        // Convert to Asia/Jerusalem ISO
-        const jerusalemTime = new Date(base.toLocaleString("en-US", { timeZone: "Asia/Jerusalem" }));
-        return jerusalemTime.toISOString();
-      } catch {
-        return '';
-      }
-    }    
+// Retries + timeout to avoid “stuck” state on flaky network
+async function fetchJSON(url, options = {}, { timeoutMs = 15000, retries = 1 } = {}) {
+  const controller = new AbortController();
+  const t = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, { ...options, signal: controller.signal });
+    if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+    return await res.json();
+  } catch (e) {
+    if (retries > 0) return fetchJSON(url, options, { timeoutMs, retries: retries - 1 });
+    throw e;
+  } finally {
+    clearTimeout(t);
+  }
+}
 
-    function getTimeFromISO(isoStr) {
-      const d = new Date(isoStr);
-      return d.toTimeString().slice(0, 5); // "HH:MM"
-    }
+function getFormattedManualTime(manualTime) {
+  if (!manualTime || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(manualTime)) return null;
+  const date = new Date(manualTime);
+  return date.toLocaleTimeString('he-IL', {
+    hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Jerusalem'
+  });
+}
 
-    function generateLetterId(length = 8) {
-      const letters = 'abcdefghijklmnopqrstuvwxyz';
-      return Array.from({ length }, () => letters[Math.floor(Math.random() * letters.length)]).join('');
-    }
+// Build ISO from “HH:mm” + base date (YYYY-MM-DD) in Asia/Jerusalem
+function parseManualTimeToFullISO(hhmm, baseDateStr) {
+  if (!hhmm || !/^\d{1,2}:\d{2}$/.test(hhmm)) return '';
+  try {
+    const [H, M] = hhmm.split(':').map(Number);
+    // baseDateStr can be ISO date or ISO datetime; get date portion
+    const dateOnly = (baseDateStr || '').substring(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateOnly)) return '';
+    // Construct a Date in the target tz by pretending local is that tz (works consistently in UI)
+    const d = new Date(`${dateOnly}T${String(H).padStart(2,'0')}:${String(M).padStart(2,'0')}:00`);
+    // Force to Asia/Jerusalem clock
+    const j = new Date(d.toLocaleString("en-US", { timeZone: "Asia/Jerusalem" }));
+    return j.toISOString();
+  } catch {
+    return '';
+  }
+}
 
-    function formatDate(isoStr) {
-      const date = new Date(isoStr);
-      const options = {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-        weekday: 'long',
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false
-      };
-      return date.toLocaleString('he-IL', options);
-    }
+function getTimeFromISO(isoStr) {
+  const d = new Date(isoStr);
+  return d.toTimeString().slice(0, 5);
+}
 
-// Show login modal until authenticated
+function generateLetterId(length = 8) {
+  const letters = 'abcdefghijklmnopqrstuvwxyz';
+  return Array.from({ length }, () => letters[Math.floor(Math.random() * letters.length)]).join('');
+}
+
+function formatDate(isoStr) {
+  const date = new Date(isoStr);
+  return date.toLocaleString('he-IL', {
+    year: 'numeric', month: 'short', day: 'numeric',
+    weekday: 'long', hour: '2-digit', minute: '2-digit', hour12: false
+  });
+}
+
+/* ========= auth + app ========= */
+
 let AUTHENTICATED = false;
 
-document.addEventListener('DOMContentLoaded', function() {
-  const loginModal = document.getElementById('login-modal');
-  const loginBtn = document.getElementById('login-btn');
-  const passwordInput = document.getElementById('admin-password');
-  const loginError = document.getElementById('login-error');
+// One global outside-click closer for dropdowns and modals
+document.addEventListener('click', (e) => {
+  // Shift dropdowns
+  const shiftMenu = document.getElementById('shift-checkboxes');
+  const shiftToggle = document.getElementById('shift-dropdown');
+  if (shiftMenu && shiftToggle && !shiftToggle.contains(e.target)) shiftMenu.classList.add('hidden');
 
-  // Prevent showing the app if not authenticated
-  window.startApp = function() {
-    const legend = document.getElementById('calendar-legend');
-    const modal = document.getElementById('event-modal');
-    const modalClose = document.getElementById('modal-close');
-    const descTextarea = document.getElementById('new-desc');
+  const templateMenu = document.getElementById('template-checkboxes');
+  const templateToggle = document.getElementById('template-dropdown');
+  if (templateMenu && templateToggle && !templateToggle.contains(e.target)) templateMenu.classList.add('hidden');
 
-    document.addEventListener('click', function (e) {
-      const shiftToggle = document.getElementById('shift-dropdown');
-      const shiftMenu = document.getElementById('shift-checkboxes');
-      const templateToggle = document.getElementById('template-dropdown');
-      const templateMenu = document.getElementById('template-checkboxes');
-    
-      if (!shiftToggle.contains(e.target)) {
-        shiftMenu.classList.add('hidden');
-      }
-    
-      if (!templateToggle.contains(e.target)) {
-        templateMenu.classList.add('hidden');
-      }
+  const dailyTplMenu = document.getElementById('daily-template-options');
+  const dailyTplToggle = document.getElementById('daily-template-dropdown-toggle');
+  if (dailyTplMenu && dailyTplToggle && !dailyTplToggle.contains(e.target) && !dailyTplMenu.contains(e.target)) {
+    dailyTplMenu.classList.add('hidden');
+  }
 
-      const tplToggle = document.getElementById('daily-template-dropdown-toggle');
-      const tplMenu   = document.getElementById('daily-template-options');
-      if (tplToggle && tplMenu && 
-          !tplToggle.contains(e.target) && 
-          !tplMenu.contains(e.target)) {
-        tplMenu.classList.add('hidden');
-      }
-    });  
+  // Daily modal outside click
+  const dailyModal = document.getElementById('daily-task-modal');
+  const dailyContent = document.getElementById('daily-task-modal-content');
+  if (dailyModal && !dailyModal.classList.contains('hidden') &&
+      dailyContent && !dailyContent.contains(e.target) &&
+      !e.target.closest('.daily-task-btn') && !e.target.closest('.fc-event')) {
+    dailyModal.classList.add('hidden');
+  }
+});
 
+document.addEventListener('DOMContentLoaded', function () {
+  const loginModal   = document.getElementById('login-modal');
+  const loginBtn     = document.getElementById('login-btn');
+  const passwordInput= document.getElementById('admin-password');
+  const loginError   = document.getElementById('login-error');
+
+  window.startApp = function () {
+    const legend        = document.getElementById('calendar-legend');
+    const modal         = document.getElementById('event-modal');
+    const modalClose    = document.getElementById('modal-close');
+    const descTextarea  = document.getElementById('new-desc');
+
+    // Auto-resize manual input textarea
     if (descTextarea) {
       descTextarea.addEventListener('input', function () {
         this.style.height = 'auto';
@@ -125,21 +144,20 @@ document.addEventListener('DOMContentLoaded', function() {
       });
     }
 
-    modalClose.addEventListener('click', () => modal.classList.add('hidden'));
-
-    modal.addEventListener('click', (e) => {
-      if (e.target.id === 'event-modal') {
-        modal.classList.add('hidden');
-      }
+    modalClose?.addEventListener('click', () => modal.classList.add('hidden'));
+    modal?.addEventListener('click', (e) => {
+      if (e.target.id === 'event-modal') modal.classList.add('hidden');
     });
 
-    fetch(`${BASE_URL}/events`)
-      .then(response => response.json())
+    // Load events
+    fetchJSON(`${BASE_URL}/events`, {}, { retries: 2 })
       .then(data => {
         const events = [];
         const activeCalendars = {};
+        legend.innerHTML = '';
 
-        data.forEach(calendarData => {
+        (data || []).forEach(calendarData => {
+          if (!calendarData || !Array.isArray(calendarData.events)) return;
           const name = calendarData.calendar;
           const color = calendarColors[name] || '#039be5';
           activeCalendars[name] = true;
@@ -203,12 +221,7 @@ document.addEventListener('DOMContentLoaded', function() {
             center: '',
             end: 'today prev,next dayGridMonth,timeGridWeek,timeGridDay'
           },
-          buttonText: {
-            today: 'היום',
-            month: 'חודש',
-            week: 'שבוע',
-            day: 'יום'
-          },
+          buttonText: { today: 'היום', month: 'חודש', week: 'שבוע', day: 'יום' },
           events: (fetchInfo, successCallback) => {
             const filtered = events.filter(e => activeCalendars[e.extendedProps.calendar]);
             successCallback(filtered);
@@ -220,27 +233,24 @@ document.addEventListener('DOMContentLoaded', function() {
               const hour = sorted.length ? new Date(sorted[0].start).getHours() : 8;
               calendar.setOption('scrollTime', `${Math.max(hour - 1, 8)}:00:00`);
             }
-
-            if (['timeGridWeek', 'timeGridDay'].includes(viewInfo.view.type)) {
-              setTimeout(() => {
-                const dayHeaders = document.querySelectorAll('.fc-col-header-cell');
-                dayHeaders.forEach(header => {
+            // Add "+ משימה יומית" buttons
+            requestAnimationFrame(() => {
+              const dayHeaders = document.querySelectorAll('.fc-col-header-cell');
+              dayHeaders.forEach(header => {
+                if (!header.querySelector('.daily-task-btn')) {
                   const btn = document.createElement('button');
                   btn.textContent = '+ משימה יומית';
                   btn.className = 'daily-task-btn';
                   btn.onclick = () => openDailyTaskModal(header.getAttribute('data-date'));
-                  if (!header.querySelector('.daily-task-btn')) {
-                    header.appendChild(btn);
-                  }
-                });
-              }, 0);
-            }
-
+                  header.appendChild(btn);
+                }
+              });
+            });
           },
           eventDidMount: (info) => {
             if (info.event.extendedProps.location) {
               const tooltip = document.createElement('div');
-              tooltip.innerHTML = `<strong>${info.event.title}</strong><br>${info.event.extendedProps.location}`;
+              tooltip.textContent = `${info.event.title} — ${info.event.extendedProps.location}`;
               tooltip.style.position = 'absolute';
               tooltip.style.backgroundColor = '#fff';
               tooltip.style.padding = '4px';
@@ -249,977 +259,824 @@ document.addEventListener('DOMContentLoaded', function() {
               tooltip.style.display = 'none';
               document.body.appendChild(tooltip);
 
-              info.el.addEventListener('mouseenter', (e) => {
+              const enter = (e) => {
                 tooltip.style.display = 'block';
                 tooltip.style.left = `${e.pageX + 10}px`;
                 tooltip.style.top = `${e.pageY + 10}px`;
-              });            
+              };
+              const move = (e) => {
+                tooltip.style.left = `${e.pageX + 10}px`;
+                tooltip.style.top = `${e.pageY + 10}px`;
+              };
+              const leave = () => { tooltip.remove(); };
 
-              info.el.addEventListener('mouseleave', () => {
-                tooltip.style.display = 'none';
-              });
+              info.el.addEventListener('mouseenter', enter);
+              info.el.addEventListener('mousemove', move);
+              info.el.addEventListener('mouseleave', leave);
             }
           },
-  eventClick: function (info) {
-    const isDaily = info.event.title.startsWith('[משימה יומית]');
-    const eventKey = isDaily
-      ? `DAILY_${info.event.startStr.substring(0, 10)}_${info.event.extendedProps.calendar}`
-      : `${info.event.title}_${info.event.startStr}_${info.event.extendedProps.calendar}`;
-  
-      if (isDaily) {
-        info.jsEvent.stopPropagation();
-        const eventKey = info.event.extendedProps.event_key;  // use stored key
-        const dateStr = info.event.startStr.substring(0, 10);
-        const branch = info.event.extendedProps.calendar || '';
-  
-        // Prepare the modal for editing
-        const modal = document.getElementById('daily-task-modal');
-        document.getElementById('daily-task-modal-title').textContent = 'עריכת משימה';
-        modal.dataset.date = dateStr;
-        document.getElementById('daily-task-edit-key').value = eventKey;
-        document.getElementById('daily-task-branch').value = branch;
-        modal.classList.remove('hidden');
-      
-        // Fetch the existing task
-        fetch(`${BASE_URL}/get_task?event_key=${encodeURIComponent(eventKey)}`)
-          .then(res => res.json())
-          .then(data => {
-            const task = data.tasks?.[0];
-            if (!task) return;
-      
-            document.getElementById('daily-task-desc').value = task.desc || '';
-            const descEl = document.getElementById('daily-task-desc');
-            descEl.style.height = 'auto' // Always reset before measuring
-            const minHeight = 40
-            const neededHeight = Math.max(descEl.scrollHeight, minHeight)
-            descEl.style.height = neededHeight + 'px'
-            const [hh, mm] = getTimeFromISO(task.manual_todo_time || task.todo_time).split(':');
-            document.getElementById('daily-task-hour').value   = hh;
-            document.getElementById('daily-task-minute').value = mm;
-            document.getElementById('daily-task-priority').value = task.priority || 'רגיל';
-            document.getElementById('daily-task-stage').value = task.stage || 'פתיחה';
-            document.getElementById('daily-task-branch').value = branch;
+          // Optional: clean tooltip on unmount
+          eventWillUnmount: (info) => { /* tooltips removed on mouseleave */ },
+          eventClick: handleEventClick()
+        });
 
-            fetch(`${BASE_URL}/get_employees`)
-            .then(res => res.json())
+        calendar.render();
+
+        // Load daily tasks and add them to the same events array
+        fetchJSON(`${BASE_URL}/get_daily_tasks`, {}, { retries: 2 })
+          .then(dailyTasks => {
+            (dailyTasks || []).forEach(task => {
+              if (!task.manual_todo_time || !task.desc || !task.branch) return;
+              const start = new Date(task.manual_todo_time);
+              const end = new Date(start.getTime() + 60 * 60 * 1000);
+              const color = calendarColors[task.branch] || '#607d8b';
+              events.push({
+                title: `[משימה יומית] ${task.desc}`,
+                start: start.toISOString(),
+                end: end.toISOString(),
+                backgroundColor: color,
+                borderColor: color,
+                extendedProps: {
+                  calendar: task.branch,
+                  description: `משימה יומית לסניף ${task.branch}`,
+                  event_key: task.event_key
+                }
+              });
+            });
+            calendar.refetchEvents();
+          })
+          .catch((e) => showError(`Daily tasks failed: ${e.message}`));
+
+        // Daily modal helpers (defined inside startApp to keep scope tight)
+        function openDailyTaskModal(dateStr) {
+          const modal = document.getElementById('daily-task-modal');
+          document.getElementById('daily-task-edit-key').value = '';
+          const descEl = document.getElementById('daily-task-desc');
+          descEl.value = '';
+          descEl.style.height = 'auto';
+          document.getElementById('daily-task-hour').value = '';
+          document.getElementById('daily-task-minute').value = '';
+          document.getElementById('daily-task-priority').value = 'רגיל';
+          document.getElementById('daily-task-stage').value = 'פתיחה';
+          document.getElementById('daily-task-branch').value = '';
+          document.getElementById('daily-task-modal-title').textContent = 'הוספת משימה יומית';
+          modal.dataset.date = dateStr;
+          modal.classList.remove('hidden');
+
+          // Employees
+          fetchJSON(`${BASE_URL}/get_employees`, {}, { retries: 2 })
             .then(data => {
               const employees = Array.isArray(data) ? data : (data.employees || []);
               const shiftContainer = document.getElementById('daily-shift-checkboxes');
               const toggle = document.getElementById('daily-shift-dropdown-toggle');
-
-              toggle.onclick = () => {
-                shiftContainer.classList.toggle('hidden');
-              };
-
-              document.addEventListener('click', function (e) {
-                const toggle = document.getElementById('daily-shift-dropdown-toggle');
-                const menu = document.getElementById('daily-shift-checkboxes');
-              
-                if (toggle && menu && !toggle.contains(e.target) && !menu.contains(e.target)) {
-                  menu.classList.add('hidden');
-                }
-              });
-
+              toggle.onclick = () => shiftContainer.classList.toggle('hidden');
               shiftContainer.innerHTML = '';
-              const selectedShift = Array.isArray(data.shift)
-                ? data.shift
-                : (typeof data.shift === 'string' && data.shift !== 'none' ? [data.shift] : []);
-
               employees.forEach(emp => {
                 const label = document.createElement('label');
                 const checkbox = document.createElement('input');
                 checkbox.type = 'checkbox';
                 checkbox.value = emp.name;
-                checkbox.checked = selectedShift.includes(emp.name);
                 label.appendChild(checkbox);
                 label.append(` ${emp.name}`);
                 shiftContainer.appendChild(label);
               });
-            });
+            })
+            .catch((e) => showError(`get_employees failed: ${e.message}`));
 
-         // —— Template dropdown setup ——
+          // Daily templates
           const tplToggle    = document.getElementById('daily-template-dropdown-toggle');
           const tplContainer = document.getElementById('daily-template-options');
-
-          tplToggle.onclick = () => tplContainer.classList.toggle('hidden');
           tplContainer.innerHTML = '';
+          tplToggle.onclick = () => tplContainer.classList.toggle('hidden');
 
-          fetch(`${BASE_URL}/get_templates`)
-            .then(r => r.json())
+          fetchJSON(`${BASE_URL}/get_templates`, {}, { retries: 2 })
             .then(allTemplates => {
               Object.keys(allTemplates)
-                .filter(name =>
-                  /daily\d+/i.test(name) ||
-                  name.includes('יומי') ||
-                  name.includes('יומית')
-                )
+                .filter(name => /daily\d+/i.test(name) || name.includes('יומי') || name.includes('יומית'))
                 .forEach(key => {
                   const label = document.createElement('label');
                   label.textContent = key;
                   label.style.cursor = 'pointer';
-
                   label.addEventListener('click', () => {
-                    const descEl = document.getElementById('daily-task-desc');
-                    descEl.style.height = "auto"; // Reset height first!
-                    //descEl.style.height = descEl.scrollHeight + "20px";
-                    const templates   = allTemplates[key] || [];
-                    const templateDesc= templates[0]?.desc;
-
-                    if (!templateDesc) {
-                      console.warn('no desc for', key);
-                      return;
-                    }
-
-                    // 1) append into the textarea
-                    descEl.value += (descEl.value ? ' ' : '') + templateDesc +'\n';
-
-                    // 2) auto-resize it so you actually see it
+                    const templates = allTemplates[key] || [];
+                    const templateDesc = templates[0]?.desc;
+                    if (!templateDesc) return;
+                    descEl.value += (descEl.value ? ' ' : '') + templateDesc + '\n';
                     descEl.style.height = 'auto';
                     descEl.style.height = descEl.scrollHeight + 'px';
-
-                    // 3) hide the dropdown
                     tplContainer.classList.add('hidden');
                   });
-
                   tplContainer.appendChild(label);
                 });
             })
-            .catch(console.error);
-
-          });  
-        return;
-      }      
-      
-    modal.classList.remove('hidden');
-    document.getElementById('modal-title').textContent = info.event.title;
-    const start = formatDate(info.event.start);
-    const end = formatDate(info.event.end);
-    document.getElementById('modal-time').textContent = `${start} ← ${end}`;
-    document.getElementById('modal-location').textContent = info.event.extendedProps.location || '';
-    document.getElementById('modal-description').innerHTML = info.event.extendedProps.description || '';
-
-    const taskListEl = document.getElementById('task-list');
-    const shiftContainer = document.getElementById('shift-checkboxes');
-
-    shiftContainer.innerHTML = '';
-
-    let storedTasks = [];
-    let currentShift = [];
-    let usedTemplateName = '';
-    let selectedTemplateNames = new Set();
-
-    fetch(`${BASE_URL}/get_templates`)
-      .then(response => response.json())
-      .then(async (templates) => {
-        try {
-          const res = await fetch(`${BASE_URL}/get_task?event_key=${encodeURIComponent(eventKey)}`);
-          const data = await res.json();
-          storedTasks = Array.isArray(data.tasks) ? data.tasks : [];
-          
-          selectedTemplateNames = new Set(
-            storedTasks
-              .filter(t => t.source === 'template')
-              .map(t => t.template_name)
-          );
-          
-          // Build dropdown
-          const templateDropdownToggle = document.getElementById('template-dropdown-toggle');
-          const templateCheckboxes = document.getElementById('template-checkboxes');
-          templateCheckboxes.innerHTML = ''; // clear
-          
-          templateDropdownToggle.onclick = () => {
-            templateCheckboxes.classList.toggle('hidden');
-          };
-
-          // Dynamically get unique template names from the templates object, ordered as they appear
-          const orderedTemplateNames = Object.keys(templates).filter(
-            name => !name.includes('daily') && !name.includes('יומית')  && !name.includes('יומי')
-          );
-
-
-          orderedTemplateNames.forEach(templateName => {
-            const label = document.createElement('label');
-            const checkbox = document.createElement('input');
-            checkbox.type = 'checkbox';
-            checkbox.value = templateName;
-            checkbox.checked = selectedTemplateNames.has(templateName);
-          
-            checkbox.addEventListener('change', () => {
-              const isChecked = checkbox.checked;
-            
-              // Remove old tasks from this template
-              storedTasks = storedTasks.filter(t => !(t.source === 'template' && t.template_name === templateName));
-              selectedTemplateNames.delete(templateName);
-            
-              // If now checked, add template tasks
-              if (isChecked) {
-                const tasksFromTemplate = templates[templateName].map(task => ({
-                  ...task,
-                  source: 'template',
-                  template_name: templateName,
-                  todo_time: task.todo_time || generateTodoTime(task.stage),
-                  done: false
-                }));
-                storedTasks = [...storedTasks, ...tasksFromTemplate];
-                selectedTemplateNames.add(templateName);
-              }
-            
-              renderTasks(storedTasks, info.event.startStr, info.event.endStr, selectedTemplateNames);
-              saveToServer();
-            });
-          
-            label.appendChild(checkbox);
-            label.append(` ${templateName}`);
-            templateCheckboxes.appendChild(label);
-          });        
-
-          const templateTask = storedTasks.find(t => t.source === 'template' && t.template_name);
-          if (templateTask) {
-            usedTemplateName = templateTask.template_name;
-          }
-
-          currentShift = Array.isArray(data.shift) ? data.shift :
-            (typeof data.shift === 'string' && data.shift !== 'none') ? [data.shift] : [];
-
-        } catch (err) {
-          storedTasks = [];
-          currentShift = [];
-        }
-        
-        function generateTodoTime(stage) {
-          if (stage === 'פתיחה') return 'pre_00:00';
-          if (stage === 'שוטף') return 'started_00:00';
-          if (stage === 'סגירה') return 'ended_00:00';
-          return 'unknown_00:00';
-        }      
-
-        function saveToServer() {
-          storedTasks = storedTasks.map(task => {
-            if (
-              task.source === 'template' &&
-              (!task.manual_todo_time || task.manual_todo_time === '')
-            ) {
-              const execTimeStr = getTaskExecutionTime(
-                task.todo_time,
-                info.event.startStr,
-                info.event.endStr,
-                task.template_name,
-                selectedTemplateNames,
-                ''
-              );
-              const fullIso = parseManualTimeToFullISO(execTimeStr, info.event.startStr);
-              return { ...task, manual_todo_time: fullIso };
-            }
-            return task;
-          });
-        
-          const branch = info.event.extendedProps.calendar || '';
-          fetch(`${BASE_URL}/save_task`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              event_key: eventKey,
-              tasks: storedTasks,
-              shift: currentShift,
-              branch: branch
-            })
-          }).then(res => res.json()).then(console.log);
-        }          
-
-        function renderTasks(taskArray, eventStartStr, eventEndStr, selectedTemplateNames) {
-            taskListEl.innerHTML = '';
-
-          // Dynamically get all unique template names from taskArray
-        const orderedTemplateNames = Array.from(
-          new Set(
-            taskArray
-              .map(t => t.template_name)
-              .filter(name => !!name && !name.includes('daily') && !name.includes('יומית'))
-          )
-        );
-
-          const stageOrder = { 'פתיחה': 1, 'מעטפת': 2, 'שוטף': 3, 'סגירה': 4 };
-
-          // Keep only manual tasks or template tasks known in data
-          const enrichedTasks = taskArray
-          .filter(t => t.source === 'manual' || orderedTemplateNames.includes(t.template_name))
-          .map(t => {
-            if (t.source === 'manual') return t;  // keep template_name as is
-            const name = t.template_name || t.task_stage || t.stage || '';
-            return { ...t, template_name: name };
-          });          
-
-          enrichedTasks.sort((a, b) => {
-            // Always sort by .stage, fallback to ''
-            const stageA = a.stage || '';
-            const stageB = b.stage || '';
-            const stageDiff = (stageOrder[stageA] || 99) - (stageOrder[stageB] || 99);
-            if (stageDiff !== 0) return stageDiff;
-
-            // If same stage, then by time
-            const aTime = parseTodoTime(a.manual_todo_time || a.todo_time);
-            const bTime = parseTodoTime(b.manual_todo_time || b.todo_time);
-            return aTime - bTime;
-          });
-
-          function parseTodoTime(todo) {
-            if (!todo || typeof todo !== 'string') return Infinity;
-          
-            // If it's an ISO datetime string, treat it as manual
-            if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(todo)) {
-              const date = new Date(todo);
-              return date.getHours() * 60 + date.getMinutes();
-            }
-          
-            const [prefix, timePart] = todo.split('_');
-            if (!timePart || timePart === 'current') return Infinity;
-          
-            const [h, m] = timePart.split(':').map(Number);
-            const minutes = (isNaN(h) ? 0 : h * 60) + (isNaN(m) ? 0 : m);
-          
-            if (prefix === 'pre') return -10000 + minutes;       // earliest
-            if (prefix === 'started') return 0 + minutes;
-            if (prefix === 'ended') return 10000 + minutes;      // latest
-            return Infinity;
-          }            
-          
-          const taskBox = document.createElement('div');
-          taskBox.className = 'template-task-box';
-          taskBox.innerHTML = `<strong>רשימת המשימות:</strong>`;
-          
-          enrichedTasks.forEach(task => {
-            const trueIndex = storedTasks.findIndex(t =>
-              t.desc === task.desc &&
-              t.stage === task.stage &&
-              t.priority === task.priority &&
-              t.todo_time === task.todo_time &&
-              t.manual_todo_time === task.manual_todo_time
-            );              
-            const manualTimeStr = getFormattedManualTime(task.manual_todo_time);
-            const executionTime = manualTimeStr || getTaskExecutionTime(task.todo_time, eventStartStr, eventEndStr, task.template_name, selectedTemplateNames, '');
-          
-            const li = document.createElement('li');
-            li.innerHTML = `
-              <div class="task-card-header">
-                <button class="edit-task" data-index="${trueIndex}" title="ערוך">✏️</button>
-                <div class="task-meta">
-                  תזמון: ${task.stage} (${executionTime}) 
-                  &nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp; דחיפות: ${task.priority}
-                </div>              
-                <button class="delete-task" data-index="${trueIndex}" title="מחק">🗑️</button>
-              </div>
-              <div class="task-desc-text">${task.desc}</div>
-            `;
-
-            const statusWrapper = document.createElement('div');
-            statusWrapper.style.display = 'flex';
-            statusWrapper.style.alignItems = 'center';
-            statusWrapper.style.gap = '10px';
-            statusWrapper.style.marginTop = '8px';
-
-            const statusEl = document.createElement('div');
-            const doneTimestamp = typeof task.done === 'string' && task.done !== 'false' ? formatTime(task.done) : '';
-            statusEl.textContent = task.done && task.done !== false
-              ? `סטאטוס: בוצע - ${doneTimestamp}`
-              : `סטאטוס: לא בוצע - `;
-
-            const toggleBtn = document.createElement('button');
-            toggleBtn.textContent = task.done ? 'לחץ להחזיר ללא בוצע' : 'לחץ אם בוצע';
-            toggleBtn.title = 'שנה סטאטוס משימה';
-
-            toggleBtn.onclick = () => {
-              const now = new Date().toLocaleString('sv-SE', { timeZone: 'Asia/Jerusalem' }).replace(' ', 'T');
-            
-              // Find and update task in storedTasks
-              const trueIndex = storedTasks.findIndex(t =>
-                t.desc === task.desc &&
-                t.stage === task.stage &&
-                t.priority === task.priority &&
-                (t.template_name || '') === (task.template_name || '')
-              );
-              if (trueIndex !== -1) {
-                const updatedTask = storedTasks[trueIndex];
-                // Toggle value
-                if (!updatedTask.done || updatedTask.done === false) {
-                  updatedTask.done = now;
-                } else {
-                  updatedTask.done = false;
-                }
-                // Immediately re-render after change
-                renderTasks(storedTasks, eventStartStr, eventEndStr, selectedTemplateNames);
-                saveToServer();
-            
-                // Send message with updated status
-                fetch(`${BASE_URL}/wa-task`, {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    task: updatedTask.desc,
-                    event_key: eventKey,
-                    done: !!updatedTask.done
-                  })
-                }).then(r => r.json()).then(console.log);
-              }
-            };
-
-            function formatTime(isoStr) {
-              const date = new Date(isoStr);
-              return date.toLocaleTimeString('he-IL', {
-                hour: '2-digit',
-                minute: '2-digit',
-                hour12: false
-              });
-            }
-
-            statusWrapper.appendChild(statusEl);
-            statusWrapper.appendChild(toggleBtn);
-            li.appendChild(statusWrapper);
-
-            // Color by stage (always)
-            const stageColors = {
-              'פתיחה':   { border: 'green',   background: '#e8f5e9' },
-              'מעטפת':   { border: 'purple',  background: '#cdb8d1' },
-              'שוטף':    { border: 'orange',  background: '#fff3e0' },
-              'סגירה':   { border: 'red',     background: '#ffebee' }
-            };
-            const stageVal = task.stage || '';
-            const colors = stageColors[stageVal] || { border: 'gray', background: '#f5f5f5' };
-            li.style.backgroundColor = colors.background;
-            li.style.border = `3px solid ${colors.border}`;
-            li.style.borderRadius = '6px';
-            li.style.padding = '10px';
-            li.style.marginBottom = '10px';
-
-            taskBox.appendChild(li);
-          });
-
-          taskListEl.appendChild(taskBox);
-                     
-          taskListEl.querySelectorAll('.delete-task').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-              const idx = parseInt(e.target.dataset.index);
-              
-              const confirmDelete = confirm("האם אתה בטוח שברצונך למחוק את המשימה?");
-              if (!confirmDelete) return;
-          
-              storedTasks.splice(idx, 1);
-              renderTasks(storedTasks, info.event.startStr, info.event.endStr, selectedTemplateNames);
-              saveToServer();
-            });
-          });            
-
-          taskListEl.querySelectorAll('.edit-task').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-              const idx = parseInt(e.target.dataset.index);
-              const task = storedTasks[idx];
-              const li = e.target.closest('li');
-            
-              const inputDesc = document.createElement('textarea');
-              inputDesc.value = task.desc;
-              inputDesc.rows = 2;
-              inputDesc.style.width = '100%';
-            
-              const stageSelect = document.createElement('select');
-              ['פתיחה', 'שוטף', 'סגירה'].forEach(opt => {
-                const option = document.createElement('option');
-                option.value = opt;
-                option.textContent = opt;
-                if (task.stage === opt) option.selected = true;
-                stageSelect.appendChild(option);
-              });
-            
-              const prioritySelect = document.createElement('select');
-              ['נמוך', 'רגיל', 'דחוף'].forEach(opt => {
-                const option = document.createElement('option');
-                option.value = opt;
-                option.textContent = opt;
-                if (task.priority === opt) option.selected = true;
-                prioritySelect.appendChild(option);
-              });
-            
-              const manualTimeInput = document.createElement('input');
-              manualTimeInput.type = 'text';
-              manualTimeInput.placeholder = 'תזמון ידני (לדוג׳ 17:00)';
-              manualTimeInput.value = task.manual_todo_time
-                ? new Date(task.manual_todo_time).toLocaleTimeString('he-IL', {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                    hour12: false,
-                    timeZone: 'Asia/Jerusalem'
-                  })
-                : '';
-
-              manualTimeInput.style.marginTop = '6px';
-              manualTimeInput.style.width = '100%';                
-
-              const saveBtn = document.createElement('button');
-              saveBtn.textContent = '💾';
-              saveBtn.title = 'שמור שינויים';
-              saveBtn.style.marginRight = '8px';
-            
-              saveBtn.onclick = () => {
-                task.desc = inputDesc.value.trim();
-                task.stage = stageSelect.value;
-                task.priority = prioritySelect.value;
-                const timeStr = manualTimeInput.value.trim();
-                task.manual_todo_time = parseManualTimeToFullISO(timeStr, eventStartStr);
-
-                renderTasks(storedTasks, info.event.startStr, info.event.endStr, selectedTemplateNames);
-                saveToServer();
-              };
-            
-              const descDiv = li.querySelector('.task-desc-text');
-              const metaDiv = li.querySelector('.task-meta');
-              descDiv.innerHTML = ''; // Clear original
-              metaDiv.innerHTML = ''; // Clear original
-            
-              descDiv.appendChild(inputDesc);
-              metaDiv.appendChild(stageSelect);
-              metaDiv.appendChild(manualTimeInput);
-              metaDiv.appendChild(prioritySelect);
-              metaDiv.appendChild(saveBtn);
-            });
-            
-          });
+            .catch((e) => showError(`get_templates failed: ${e.message}`));
         }
 
-        renderTasks(storedTasks, info.event.startStr, info.event.endStr, selectedTemplateNames);
-
-        function getTaskExecutionTime(todoTime, startTimeStr, endTimeStr, templateName = '', selectedTemplateNames = new Set(), manualTime = '') {
-          const timeSource = (manualTime && manualTime.trim() !== '') ? manualTime.trim() : (todoTime || '').trim();
-        
-          if (!timeSource || !startTimeStr || !endTimeStr) return '';
-        
-          // Case 1: full ISO format (manual_todo_time)
-          if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(timeSource)) {
-            const date = new Date(timeSource);
-            const hours = date.getHours().toString().padStart(2, '0');
-            const minutes = date.getMinutes().toString().padStart(2, '0');
-            return `${hours}:${minutes}`;
-          }
-        
-          // Case 2: todo_time format with prefix
-          const [prefix, ...rest] = timeSource.split('_');
-          const timePart = rest.join('_').trim();
-          if (!prefix || !timePart || timePart === 'current') return '';
-        
-          let offsetMinutes = 0;
-          if (timePart.includes(':')) {
-            const [h, m] = timePart.split(':').map(x => Number(x.trim()));
-            offsetMinutes = h * 60 + m;
-          } else {
-            console.warn('Invalid time format:', timePart);
-            return '';
-          }
-        
-          let baseTime;
-          if (prefix === 'pre') {
-            baseTime = new Date(startTimeStr);
-        
-            // Apply 105-minute offset ONLY if:
-            // 1. current task is from פתיחה
-            // 2. מעטפת is also selected
-            const isPtichaWithMaatefet =
-              templateName === 'פתיחה' && selectedTemplateNames.has('מעטפת');
-        
-            const baseOffset = isPtichaWithMaatefet ? 105 : 60;
-            baseTime.setMinutes(baseTime.getMinutes() - baseOffset + offsetMinutes);
-        
-          } else if (prefix === 'started') {
-            baseTime = new Date(startTimeStr);
-            baseTime.setMinutes(baseTime.getMinutes() + offsetMinutes);
-        
-          } else if (prefix === 'ended') {
-            baseTime = new Date(endTimeStr);
-            baseTime.setMinutes(baseTime.getMinutes() + offsetMinutes);
-        
-          } else {
-            console.warn('Unknown prefix:', prefix);
-            return '';
-          }
-        
-          const hours = baseTime.getHours().toString().padStart(2, '0');
-          const minutes = baseTime.getMinutes().toString().padStart(2, '0');
-          return `${hours}:${minutes}`;
-        }          
-        
-        
-        document.getElementById('add-task-confirm').onclick = () => {
-          const desc = document.getElementById('new-desc').value.trim();
-          const stage = document.getElementById('new-stage').value;
-          const priority = document.getElementById('new-priority').value;
-      
-          const manualTimeInput = document.getElementById('new-manual-time').value.trim();
-          let manual_todo_time = parseManualTimeToFullISO(manualTimeInput, info.event.startStr);
-          let todo_time = '';
-          if (stage === 'פתיחה') todo_time = 'pre_00:00';
-          else if (stage === 'שוטף') todo_time = 'started_00:00';
-          else if (stage === 'סגירה') todo_time = 'ended_00:00';
-          
-          // If manual_todo_time is empty, fallback to UI-based calculation using todo_time
-          if (!manual_todo_time) {
-            const calculatedTimeStr = getTaskExecutionTime(
-              todo_time,
-              info.event.startStr,
-              info.event.endStr,
-              '', // template name not relevant for manual task
-              new Set(), // selected templates not relevant here
-              '' // no manual input
-            );
-            manual_todo_time = parseManualTimeToFullISO(calculatedTimeStr, info.event.startStr);
-          }
-          if (!desc) return;
-
-          storedTasks.push({ desc, stage, priority, source: 'manual', todo_time: manual_todo_time || generateTodoTime(stage), manual_todo_time });
-
-          renderTasks(storedTasks, info.event.startStr, info.event.endStr, selectedTemplateNames);
-          document.getElementById('new-desc').value = '';
-          document.getElementById('new-manual-time').value = '';
-          document.getElementById('new-stage').value = 'פתיחה';
-          document.getElementById('new-priority').value = 'גבוהה';
-          saveToServer();
-        };
-
-        fetch(`${BASE_URL}/get_employees`)
-        .then(res => res.json())
-        .then(data => {
-          const employees = Array.isArray(data) ? data : (data.employees || []);
-          shiftContainer.innerHTML = ''; // clear
-      
-          const shiftDropdownToggle = document.getElementById('shift-dropdown-toggle');
-          shiftDropdownToggle.onclick = () => {
-            shiftContainer.classList.toggle('hidden');
-          };
-      
-          employees.forEach(emp => {
-            const label = document.createElement('label');
-            const checkbox = document.createElement('input');
-            checkbox.type = 'checkbox';
-            checkbox.value = emp.name;
-            checkbox.checked = currentShift.includes(emp.name);
-            checkbox.addEventListener('change', () => {
-              const checked = [...shiftContainer.querySelectorAll('input:checked')].map(c => c.value);
-              currentShift = checked.length ? checked : ['none'];
-              saveToServer();
-            });
-      
-            label.appendChild(checkbox);
-            //label.append(` ${emp.name} (${emp.phone})`);
-            label.append(`${emp.name}`);
-            shiftContainer.appendChild(label);
-          });
-        });
-      
-      });
-  }
-
+        document.getElementById('daily-task-cancel')?.addEventListener('click', () => {
+          document.getElementById('daily-task-modal').classList.add('hidden');
         });
 
-        fetch(`${BASE_URL}/get_daily_tasks`)
-        .then(res => res.json())
-        .then(dailyTasks => {
-          dailyTasks.forEach(task => {
-            if (!task.manual_todo_time || !task.desc || !task.branch) return;
-      
-            const start = new Date(task.manual_todo_time);
-            const end = new Date(start.getTime() + 60 * 60 * 1000); // 60-minute block
-            const color = calendarColors[task.branch] || '#607d8b';
-      
-            events.push({
-              title: `[משימה יומית] ${task.desc}`,
-              start: start.toISOString(),
-              end: end.toISOString(),
-              backgroundColor: color,
-              borderColor: color,
-              extendedProps: {
-                calendar: task.branch,
-                description: `משימה יומית לסניף ${task.branch}`,
-                event_key: task.event_key
-              }
-            });
-          });
-      
-          calendar.refetchEvents(); // triggers a refresh after adding them
-        });
-      
-
-        calendar.render();
-
-        document.addEventListener('click', function (event) {
-          const modal = document.getElementById('daily-task-modal');
-          const content = document.getElementById('daily-task-modal-content');
-        
-          if (!modal.classList.contains('hidden') &&
-              !content.contains(event.target) &&
-              !event.target.closest('.daily-task-btn') &&
-              !event.target.closest('.fc-event')) {
-            modal.classList.add('hidden');
-          }
-        });
-
-        function openDailyTaskModal(dateStr) {
-          const modal = document.getElementById('daily-task-modal');
-
-          document.getElementById('daily-task-edit-key').value = '';
-          document.getElementById('daily-task-desc').value     = '';
-          const descEl = document.getElementById('daily-task-desc');
-          descEl.style.height = "auto"; // Reset height first!
-          //descEl.style.height = descEl.scrollHeight + "20px";
-          document.getElementById('daily-task-hour').value   = '';
-          document.getElementById('daily-task-minute').value = '';            
-          document.getElementById('daily-task-priority').value = 'רגיל';
-          document.getElementById('daily-task-stage').value    = 'פתיחה';
-          document.getElementById('daily-task-branch').value   = '';
-
-          document.getElementById('daily-task-modal-title').textContent = 'הוספת משימה יומית';
-
-          modal.dataset.date = dateStr;
-          modal.classList.remove('hidden');
-
-          fetch(`${BASE_URL}/get_employees`)
-          .then(res => res.json())
-          .then(data => {
-            const employees = Array.isArray(data) ? data : (data.employees || []);
-            const shiftContainer = document.getElementById('daily-shift-checkboxes');
-            const toggle = document.getElementById('daily-shift-dropdown-toggle');
-      
-            toggle.onclick = () => shiftContainer.classList.toggle('hidden');
-            document.addEventListener('click', function (e) {
-              const toggle = document.getElementById('daily-shift-dropdown-toggle');
-              const menu = document.getElementById('daily-shift-checkboxes');
-            
-              if (toggle && menu && !toggle.contains(e.target) && !menu.contains(e.target)) {
-                menu.classList.add('hidden');
-              }
-            });
-
-            shiftContainer.innerHTML = '';
-            employees.forEach(emp => {
-              const label = document.createElement('label');
-              const checkbox = document.createElement('input');
-              checkbox.type = 'checkbox';
-              checkbox.value = emp.name;
-              label.appendChild(checkbox);
-              label.append(` ${emp.name}`);
-              shiftContainer.appendChild(label);
-            });
-          });
-
-      // —— Template dropdown setup ——
-      const tplToggle    = document.getElementById('daily-template-dropdown-toggle');
-      const tplContainer = document.getElementById('daily-template-options');
-
-      tplToggle.onclick = () => tplContainer.classList.toggle('hidden');
-      tplContainer.innerHTML = '';
-
-      fetch(`${BASE_URL}/get_templates`)
-        .then(r => r.json())
-        .then(allTemplates => {
-          Object.keys(allTemplates)
-            .filter(name =>
-              /daily\d+/i.test(name) ||
-              name.includes('יומי') ||
-              name.includes('יומית')
-            )
-            .forEach(key => {
-              const label = document.createElement('label');
-              label.textContent = key;
-              label.style.cursor = 'pointer';
-
-              label.addEventListener('click', () => {
-                const descEl = document.getElementById('daily-task-desc');
-                descEl.style.height = "auto"; // Reset height first!
-                //descEl.style.height = descEl.scrollHeight + "20px";
-                const templates   = allTemplates[key] || [];
-                const templateDesc= templates[0]?.desc;
-
-                if (!templateDesc) {
-                  console.warn('no desc for', key);
-                  return;
-                }
-
-                // 1) append into the textarea
-                descEl.value += (descEl.value ? ' ' : '') + templateDesc +'\n';
-
-                // 2) auto-resize it so you actually see it
-                descEl.style.height = 'auto';
-                descEl.style.height = descEl.scrollHeight + 'px';
-
-                // 3) hide the dropdown
-                tplContainer.classList.add('hidden');
-              });
-
-              tplContainer.appendChild(label);
-            });
-        })
-        .catch(console.error);
-
-
-        }
-        
-        // When saving a daily task (add or edit)
         document.getElementById('daily-task-save').onclick = () => {
           const date = document.getElementById('daily-task-modal').dataset.date;
-          const desc = document.getElementById('daily-task-desc').value.trim();
           const descEl = document.getElementById('daily-task-desc');
-          descEl.style.height = "auto"; // Reset height first!
-          descEl.style.height = descEl.Height + "40px";
-          //descEl.style.height = descEl.scrollHeight + "20px";
-          const hh = parseInt(document.getElementById('daily-task-hour').value, 10);
-          const mm = parseInt(document.getElementById('daily-task-minute').value, 10);
-          const isoTime = parseManualTimeToFullISO(`${hh}:${mm}`, date);
+          const desc = descEl.value.trim();
+          descEl.style.height = 'auto';
+          descEl.style.height = (descEl.scrollHeight + 40) + 'px';
+          const hh = Number(document.getElementById('daily-task-hour').value);
+          const mm = Number(document.getElementById('daily-task-minute').value);
+          const isoTime = parseManualTimeToFullISO(`${hh}:${String(mm).padStart(2,'0')}`, date);
           const priority = document.getElementById('daily-task-priority').value;
           const branch = document.getElementById('daily-task-branch').value;
           const stage = document.getElementById('daily-task-stage').value;
           const existingKey = document.getElementById('daily-task-edit-key').value;
 
-          if (!desc || !branch) {
-            alert("תיאור המשימה וסניף הם שדות חובה");
-            return;
-          }
-
-          if (
-            isNaN(hh) || hh < 0 || hh > 23 ||
-            isNaN(mm) || mm < 0 || mm > 59
-          ) {
+          if (!desc || !branch) return alert("תיאור המשימה וסניף הם שדות חובה");
+          if (Number.isNaN(hh) || hh < 0 || hh > 23 || Number.isNaN(mm) || mm < 0 || mm > 59) {
             return alert("נא הזן שעה חוקית בין 0–23 ודקה חוקית בין 0–59");
           }
-        
-         // Generate a UUID-based key for new tasks to avoid collisions
-         const uuid = generateLetterId(8);
-         const eventKey = existingKey || `DAILY_${date}_${branch}_${uuid}`;
-        
-          const shiftSelected = [
-            ...document.querySelectorAll('#daily-shift-checkboxes input:checked')
-          ].map(cb => cb.value);
+
+          const uuid = generateLetterId(8);
+          const eventKey = existingKey || `DAILY_${date}_${branch}_${uuid}`;
+          const shiftSelected = [...document.querySelectorAll('#daily-shift-checkboxes input:checked')].map(cb => cb.value);
           const finalShift = shiftSelected.length ? shiftSelected : ['none'];
-        
-          fetch(`${BASE_URL}/save_task`, {
+
+          fetchJSON(`${BASE_URL}/save_task`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               event_key: eventKey,
               tasks: [{
-                desc,
-                stage,
-                priority,
-                source: 'manual',
-                manual_todo_time: isoTime,
-                todo_time: isoTime,
-                template_name: '',
-                done: false
+                desc, stage, priority, source: 'manual',
+                manual_todo_time: isoTime, todo_time: isoTime,
+                template_name: '', done: false
               }],
-              shift: finalShift,
-              branch: branch
+              shift: finalShift, branch
             })
-          }).then(() => location.reload());
+          }, { retries: 1 })
+          .then(() => {
+            // Update UI without full reload:
+            const start = new Date(isoTime);
+            const end = new Date(start.getTime() + 60 * 60 * 1000);
+            const color = calendarColors[branch] || '#607d8b';
+            const newEvt = {
+              title: `[משימה יומית] ${desc}`,
+              start: start.toISOString(),
+              end: end.toISOString(),
+              backgroundColor: color,
+              borderColor: color,
+              extendedProps: { calendar: branch, description: `משימה יומית לסניף ${branch}`, event_key: eventKey }
+            };
+            // Inject into current source and refetch
+            calendar.addEvent(newEvt);
+            calendar.refetchEvents();
+            document.getElementById('daily-task-modal').classList.add('hidden');
+
+            // If you prefer old behavior, uncomment:
+            // location.reload();
+          })
+          .catch(e => showError(`save_task failed: ${e.message}`));
         };
 
         document.getElementById('daily-task-delete').onclick = () => {
           const existingKey = document.getElementById('daily-task-edit-key').value;
-        
-          if (!existingKey) {
-            alert("לא ניתן למחוק משימה שלא קיימת");
-            return;
-          }
-        
-          const confirmed = confirm("האם אתה בטוח שברצונך למחוק את המשימה?");
-          if (!confirmed) return;
-        
+          if (!existingKey) return alert("לא ניתן למחוק משימה שלא קיימת");
+          if (!confirm("האם אתה בטוח שברצונך למחוק את המשימה?")) return;
           const branch = document.getElementById('daily-task-branch').value || 'ראשון לציון';
-        
-          fetch(`${BASE_URL}/save_task`, {
+
+          fetchJSON(`${BASE_URL}/save_task`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              event_key: existingKey,
-              tasks: [],
-              shift: ['none'],
-              branch: branch
+              event_key: existingKey, tasks: [], shift: ['none'], branch
             })
-          }).then(() => {
+          }, { retries: 1 })
+          .then(() => {
+            // Remove from calendar view
+            calendar.getEvents().forEach(e => {
+              if (e.extendedProps?.event_key === existingKey) e.remove();
+            });
+            calendar.refetchEvents();
             console.log("המשימה נמחקה");
-            location.reload();
-          }).catch(() => {
-            alert("שגיאה במחיקת המשימה");
-          });
-        };          
-        
+            // Or fallback: location.reload();
+          })
+          .catch(e => alert("שגיאה במחיקת המשימה: " + e.message));
+        };
+
+      })
+      .catch(e => showError(`Loading /events failed: ${e.message}`));
+  }; // end startApp
+
+  // Helper that returns the eventClick handler (closure over nothing scary)
+  function handleEventClick() {
+    return function (info) {
+      const isDaily = info.event.title.startsWith('[משימה יומית]');
+      const regularKey = `${info.event.title}_${info.event.startStr}_${info.event.extendedProps.calendar}`;
+      const dailyKey = info.event.extendedProps.event_key;
+      const eventKey = isDaily ? dailyKey : regularKey;
+
+      if (isDaily) {
+        info.jsEvent.stopPropagation();
+        const dateStr = info.event.startStr.substring(0, 10);
+        const branch = info.event.extendedProps.calendar || '';
+        const modal = document.getElementById('daily-task-modal');
+        document.getElementById('daily-task-modal-title').textContent = 'עריכת משימה';
+        modal.dataset.date = dateStr;
+        document.getElementById('daily-task-edit-key').value = dailyKey || '';
+        document.getElementById('daily-task-branch').value = branch;
+        modal.classList.remove('hidden');
+
+        fetchJSON(`${BASE_URL}/get_task?event_key=${encodeURIComponent(eventKey)}`, {}, { retries: 1 })
+          .then(data => {
+            const task = data.tasks?.[0];
+            if (!task) return;
+
+            const descEl = document.getElementById('daily-task-desc');
+            descEl.value = task.desc || '';
+            descEl.style.height = 'auto';
+            descEl.style.height = Math.max(descEl.scrollHeight, 40) + 'px';
+
+            const t = getTimeFromISO(task.manual_todo_time || task.todo_time);
+            const [hh, mm] = t.split(':');
+            document.getElementById('daily-task-hour').value = hh;
+            document.getElementById('daily-task-minute').value = mm;
+            document.getElementById('daily-task-priority').value = task.priority || 'רגיל';
+            document.getElementById('daily-task-stage').value = task.stage || 'פתיחה';
+            document.getElementById('daily-task-branch').value = branch;
+
+            // Employees for daily edit
+            fetchJSON(`${BASE_URL}/get_employees`, {}, { retries: 1 })
+              .then(empData => {
+                const employees = Array.isArray(empData) ? empData : (empData.employees || []);
+                const shiftContainer = document.getElementById('daily-shift-checkboxes');
+                const toggle = document.getElementById('daily-shift-dropdown-toggle');
+                toggle.onclick = () => shiftContainer.classList.toggle('hidden');
+
+                shiftContainer.innerHTML = '';
+                const selectedShift = Array.isArray(data.shift)
+                  ? data.shift
+                  : (typeof data.shift === 'string' && data.shift !== 'none' ? [data.shift] : []);
+                employees.forEach(emp => {
+                  const label = document.createElement('label');
+                  const checkbox = document.createElement('input');
+                  checkbox.type = 'checkbox';
+                  checkbox.value = emp.name;
+                  checkbox.checked = selectedShift.includes(emp.name);
+                  label.appendChild(checkbox);
+                  label.append(` ${emp.name}`);
+                  shiftContainer.appendChild(label);
+                });
+              })
+              .catch(e => showError(`get_employees failed: ${e.message}`));
+
+            // Daily template dropdown
+            const tplToggle    = document.getElementById('daily-template-dropdown-toggle');
+            const tplContainer = document.getElementById('daily-template-options');
+            tplContainer.innerHTML = '';
+            tplToggle.onclick = () => tplContainer.classList.toggle('hidden');
+
+            fetchJSON(`${BASE_URL}/get_templates`, {}, { retries: 1 })
+              .then(allTemplates => {
+                Object.keys(allTemplates)
+                  .filter(name => /daily\d+/i.test(name) || name.includes('יומי') || name.includes('יומית'))
+                  .forEach(key => {
+                    const label = document.createElement('label');
+                    label.textContent = key;
+                    label.style.cursor = 'pointer';
+                    label.addEventListener('click', () => {
+                      const templates = allTemplates[key] || [];
+                      const templateDesc = templates[0]?.desc;
+                      if (!templateDesc) return;
+                      descEl.value += (descEl.value ? ' ' : '') + templateDesc + '\n';
+                      descEl.style.height = 'auto';
+                      descEl.style.height = descEl.scrollHeight + 'px';
+                      tplContainer.classList.add('hidden');
+                    });
+                    tplContainer.appendChild(label);
+                  });
+              })
+              .catch(e => showError(`get_templates failed: ${e.message}`));
+          })
+          .catch(e => showError(`get_task failed: ${e.message}`));
+
+        return;
+      }
+
+      // Regular event modal
+      const modal = document.getElementById('event-modal');
+      modal.classList.remove('hidden');
+      document.getElementById('modal-title').textContent = info.event.title;
+      const start = formatDate(info.event.start);
+      const end = formatDate(info.event.end);
+      document.getElementById('modal-time').textContent = `${start} ← ${end}`;
+      document.getElementById('modal-location').textContent = info.event.extendedProps.location || '';
+      // safer than innerHTML:
+      const pre = document.getElementById('modal-description');
+      pre.textContent = info.event.extendedProps.description || '';
+
+      const taskListEl = document.getElementById('task-list');
+      const shiftContainer = document.getElementById('shift-checkboxes');
+      shiftContainer.innerHTML = '';
+
+      let storedTasks = [];
+      let currentShift = [];
+      let selectedTemplateNames = new Set();
+
+      fetchJSON(`${BASE_URL}/get_templates`, {}, { retries: 1 })
+        .then(async (templates) => {
+          try {
+            const data = await fetchJSON(`${BASE_URL}/get_task?event_key=${encodeURIComponent(eventKey)}`, {}, { retries: 1 });
+            storedTasks = Array.isArray(data.tasks) ? data.tasks : [];
+            selectedTemplateNames = new Set(
+              storedTasks.filter(t => t.source === 'template').map(t => t.template_name)
+            );
+            // Build template dropdown
+            const templateDropdownToggle = document.getElementById('template-dropdown-toggle');
+            const templateCheckboxes = document.getElementById('template-checkboxes');
+            templateCheckboxes.innerHTML = '';
+            templateDropdownToggle.onclick = () => templateCheckboxes.classList.toggle('hidden');
+
+            const orderedTemplateNames = Object.keys(templates).filter(
+              name => !name.includes('daily') && !name.includes('יומית') && !name.includes('יומי')
+            );
+
+            orderedTemplateNames.forEach(templateName => {
+              const label = document.createElement('label');
+              const checkbox = document.createElement('input');
+              checkbox.type = 'checkbox';
+              checkbox.value = templateName;
+              checkbox.checked = selectedTemplateNames.has(templateName);
+
+              checkbox.addEventListener('change', () => {
+                const isChecked = checkbox.checked;
+                // Remove old tasks from this template
+                storedTasks = storedTasks.filter(t => !(t.source === 'template' && t.template_name === templateName));
+                selectedTemplateNames.delete(templateName);
+
+                if (isChecked) {
+                  const tasksFromTemplate = (templates[templateName] || []).map(task => ({
+                    ...task,
+                    source: 'template',
+                    template_name: templateName,
+                    todo_time: task.todo_time || generateTodoTime(task.stage),
+                    done: false
+                  }));
+                  storedTasks = [...storedTasks, ...tasksFromTemplate];
+                  selectedTemplateNames.add(templateName);
+                }
+
+                renderTasks(storedTasks, info.event.startStr, info.event.endStr, selectedTemplateNames);
+                saveToServer();
+              });
+
+              label.appendChild(checkbox);
+              label.append(` ${templateName}`);
+              templateCheckboxes.appendChild(label);
+            });
+
+            currentShift = Array.isArray(data.shift) ? data.shift :
+              (typeof data.shift === 'string' && data.shift !== 'none') ? [data.shift] : [];
+
+          } catch (err) {
+            storedTasks = [];
+            currentShift = [];
+          }
+
+          function generateTodoTime(stage) {
+            if (stage === 'פתיחה') return 'pre_00:00';
+            if (stage === 'שוטף') return 'started_00:00';
+            if (stage === 'סגירה') return 'ended_00:00';
+            return 'unknown_00:00';
+          }
+
+          function saveToServer() {
+            storedTasks = storedTasks.map(task => {
+              if (task.source === 'template' && (!task.manual_todo_time || task.manual_todo_time === '')) {
+                const execTimeStr = getTaskExecutionTime(
+                  task.todo_time, info.event.startStr, info.event.endStr, task.template_name, selectedTemplateNames, ''
+                );
+                const fullIso = parseManualTimeToFullISO(execTimeStr, info.event.startStr);
+                return { ...task, manual_todo_time: fullIso };
+              }
+              return task;
+            });
+
+            const branch = info.event.extendedProps.calendar || '';
+            fetchJSON(`${BASE_URL}/save_task`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                event_key: eventKey,
+                tasks: storedTasks,
+                shift: currentShift.length ? currentShift : ['none'],
+                branch
+              })
+            }).catch(e => showError(`save_task failed: ${e.message}`));
+          }
+
+          function renderTasks(taskArray, eventStartStr, eventEndStr, selectedTemplateNames) {
+            taskListEl.innerHTML = '';
+            const orderedTemplateNames = Array.from(new Set(
+              taskArray.map(t => t.template_name).filter(name => !!name && !name.includes('daily') && !name.includes('יומית'))
+            ));
+            const stageOrder = { 'פתיחה': 1, 'מעטפת': 2, 'שוטף': 3, 'סגירה': 4 };
+
+            const enrichedTasks = taskArray
+              .filter(t => t.source === 'manual' || orderedTemplateNames.includes(t.template_name))
+              .map(t => {
+                if (t.source === 'manual') return t;
+                const name = t.template_name || t.task_stage || t.stage || '';
+                return { ...t, template_name: name };
+              });
+
+            enrichedTasks.sort((a, b) => {
+              const stageA = a.stage || ''; const stageB = b.stage || '';
+              const stageDiff = (stageOrder[stageA] || 99) - (stageOrder[stageB] || 99);
+              if (stageDiff !== 0) return stageDiff;
+              const aTime = parseTodoTime(a.manual_todo_time || a.todo_time);
+              const bTime = parseTodoTime(b.manual_todo_time || b.todo_time);
+              return aTime - bTime;
+            });
+
+            function parseTodoTime(todo) {
+              if (!todo || typeof todo !== 'string') return Infinity;
+              if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(todo)) {
+                const date = new Date(todo);
+                return date.getHours() * 60 + date.getMinutes();
+              }
+              const [prefix, timePart] = todo.split('_');
+              if (!timePart || timePart === 'current') return Infinity;
+              const [h, m] = timePart.split(':').map(Number);
+              const minutes = (isNaN(h) ? 0 : h * 60) + (isNaN(m) ? 0 : m);
+              if (prefix === 'pre') return -10000 + minutes;
+              if (prefix === 'started') return 0 + minutes;
+              if (prefix === 'ended') return 10000 + minutes;
+              return Infinity;
+            }
+
+            const taskBox = document.createElement('div');
+            taskBox.className = 'template-task-box';
+            taskBox.innerHTML = `<strong>רשימת המשימות:</strong>`;
+
+            if (!taskArray || taskArray.length === 0) {
+              const p = document.createElement('p');
+              p.style.marginTop = '8px';
+              p.style.opacity = '0.8';
+              p.textContent = 'אין משימות לאירוע הזה (עדיין).';
+              taskBox.appendChild(p);
+              taskListEl.appendChild(taskBox);
+              return;
+            }
+
+            enrichedTasks.forEach((task, idx) => {
+              const trueIndex = (function () {
+                return (storedTasks || []).findIndex(t =>
+                  t.desc === task.desc &&
+                  t.stage === task.stage &&
+                  t.priority === task.priority &&
+                  t.todo_time === task.todo_time &&
+                  t.manual_todo_time === task.manual_todo_time
+                );
+              })();
+
+              const manualTimeStr = getFormattedManualTime(task.manual_todo_time);
+              const executionTime = manualTimeStr || getTaskExecutionTime(
+                task.todo_time, eventStartStr, eventEndStr, task.template_name, selectedTemplateNames, ''
+              );
+
+              const li = document.createElement('li');
+
+              // Header (edit/delete)
+              const headerDiv = document.createElement('div');
+              headerDiv.className = 'task-card-header';
+
+              const editBtn = document.createElement('button');
+              editBtn.className = 'edit-task';
+              editBtn.title = 'ערוך';
+              editBtn.textContent = '✏️';
+              editBtn.dataset.index = String(trueIndex);
+
+              const metaDiv = document.createElement('div');
+              metaDiv.className = 'task-meta';
+              metaDiv.textContent = `תזמון: ${task.stage} (${executionTime})  |  דחיפות: ${task.priority}`;
+
+              const delBtn = document.createElement('button');
+              delBtn.className = 'delete-task';
+              delBtn.title = 'מחק';
+              delBtn.textContent = '🗑️';
+              delBtn.dataset.index = String(trueIndex);
+
+              headerDiv.appendChild(editBtn);
+              headerDiv.appendChild(metaDiv);
+              headerDiv.appendChild(delBtn);
+
+              // Description
+              const descDiv = document.createElement('div');
+              descDiv.className = 'task-desc-text';
+              descDiv.textContent = task.desc;
+
+              // Status line
+              const statusWrapper = document.createElement('div');
+              statusWrapper.style.display = 'flex';
+              statusWrapper.style.alignItems = 'center';
+              statusWrapper.style.gap = '10px';
+              statusWrapper.style.marginTop = '8px';
+
+              const statusEl = document.createElement('div');
+              const doneTimestamp = typeof task.done === 'string' && task.done !== 'false'
+                ? new Date(task.done).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit', hour12: false })
+                : '';
+              statusEl.textContent = task.done && task.done !== false
+                ? `סטאטוס: בוצע - ${doneTimestamp}`
+                : `סטאטוס: לא בוצע - `;
+
+              const toggleBtn = document.createElement('button');
+              toggleBtn.textContent = task.done ? 'לחץ להחזיר ללא בוצע' : 'לחץ אם בוצע';
+              toggleBtn.title = 'שנה סטאטוס משימה';
+              toggleBtn.onclick = () => {
+                const now = new Date().toLocaleString('sv-SE', { timeZone: 'Asia/Jerusalem' }).replace(' ', 'T');
+                const idx = storedTasks.findIndex(t =>
+                  t.desc === task.desc && t.stage === task.stage &&
+                  t.priority === task.priority && (t.template_name || '') === (task.template_name || '')
+                );
+                if (idx !== -1) {
+                  const updatedTask = storedTasks[idx];
+                  updatedTask.done = (!updatedTask.done || updatedTask.done === false) ? now : false;
+                  renderTasks(storedTasks, eventStartStr, eventEndStr, selectedTemplateNames);
+                  saveToServer();
+
+                  fetchJSON(`${BASE_URL}/wa-task`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ task: updatedTask.desc, event_key: eventKey, done: !!updatedTask.done })
+                  }).catch(e => console.log('wa-task failed', e.message));
+                }
+              };
+
+              statusWrapper.appendChild(statusEl);
+              statusWrapper.appendChild(toggleBtn);
+
+              // Colors
+              const stageColors = {
+                'פתיחה': { border: 'green', background: '#e8f5e9' },
+                'מעטפת': { border: 'purple', background: '#cdb8d1' },
+                'שוטף': { border: 'orange', background: '#fff3e0' },
+                'סגירה': { border: 'red', background: '#ffebee' }
+              };
+              const colors = stageColors[task.stage || ''] || { border: 'gray', background: '#f5f5f5' };
+              li.style.backgroundColor = colors.background;
+              li.style.border = `3px solid ${colors.border}`;
+              li.style.borderRadius = '6px';
+              li.style.padding = '10px';
+              li.style.marginBottom = '10px';
+
+              li.appendChild(headerDiv);
+              li.appendChild(descDiv);
+              li.appendChild(statusWrapper);
+
+              taskBox.appendChild(li);
+
+              // Delete handler
+              delBtn.addEventListener('click', () => {
+                if (!confirm("האם אתה בטוח שברצונך למחוק את המשימה?")) return;
+                if (trueIndex !== -1) {
+                  storedTasks.splice(trueIndex, 1);
+                  renderTasks(storedTasks, eventStartStr, eventEndStr, selectedTemplateNames);
+                  saveToServer();
+                }
+              });
+
+              // Edit handler
+              editBtn.addEventListener('click', () => {
+                const idx = parseInt(editBtn.dataset.index, 10);
+                const task = storedTasks[idx];
+                const inputDesc = document.createElement('textarea');
+                inputDesc.value = task.desc;
+                inputDesc.rows = 2;
+                inputDesc.style.width = '100%';
+
+                const stageSelect = document.createElement('select');
+                ['פתיחה', 'שוטף', 'סגירה'].forEach(opt => {
+                  const option = document.createElement('option');
+                  option.value = opt; option.textContent = opt;
+                  if (task.stage === opt) option.selected = true;
+                  stageSelect.appendChild(option);
+                });
+
+                const prioritySelect = document.createElement('select');
+                ['נמוך', 'רגיל', 'דחוף'].forEach(opt => {
+                  const option = document.createElement('option');
+                  option.value = opt; option.textContent = opt;
+                  if (task.priority === opt) option.selected = true;
+                  prioritySelect.appendChild(option);
+                });
+
+                const manualTimeInput = document.createElement('input');
+                manualTimeInput.type = 'text';
+                manualTimeInput.placeholder = 'תזמון ידני (לדוג׳ 17:00)';
+                manualTimeInput.value = task.manual_todo_time
+                  ? new Date(task.manual_todo_time).toLocaleTimeString('he-IL', {
+                      hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Jerusalem'
+                    })
+                  : '';
+                manualTimeInput.style.marginTop = '6px';
+                manualTimeInput.style.width = '100%';
+
+                const saveBtn = document.createElement('button');
+                saveBtn.textContent = '💾';
+                saveBtn.title = 'שמור שינויים';
+                saveBtn.style.marginRight = '8px';
+
+                saveBtn.onclick = () => {
+                  task.desc = inputDesc.value.trim();
+                  task.stage = stageSelect.value;
+                  task.priority = prioritySelect.value;
+                  const timeStr = manualTimeInput.value.trim();
+                  task.manual_todo_time = parseManualTimeToFullISO(timeStr, eventStartStr);
+                  renderTasks(storedTasks, eventStartStr, eventEndStr, selectedTemplateNames);
+                  saveToServer();
+                };
+
+                // Swap UI
+                descDiv.innerHTML = '';
+                metaDiv.innerHTML = '';
+                descDiv.appendChild(inputDesc);
+                metaDiv.appendChild(stageSelect);
+                metaDiv.appendChild(manualTimeInput);
+                metaDiv.appendChild(prioritySelect);
+                metaDiv.appendChild(saveBtn);
+              });
+            }); // end forEach task
+
+            taskListEl.appendChild(taskBox);
+          } // end renderTasks
+
+          renderTasks(storedTasks, info.event.startStr, info.event.endStr, selectedTemplateNames);
+
+          function getTaskExecutionTime(todoTime, startTimeStr, endTimeStr, templateName = '', selectedTemplateNames = new Set(), manualTime = '') {
+            const timeSource = (manualTime && manualTime.trim() !== '') ? manualTime.trim() : (todoTime || '').trim();
+            if (!timeSource || !startTimeStr || !endTimeStr) return '';
+
+            if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(timeSource)) {
+              const date = new Date(timeSource);
+              return `${String(date.getHours()).padStart(2,'0')}:${String(date.getMinutes()).padStart(2,'0')}`;
+            }
+
+            const [prefix, ...rest] = timeSource.split('_');
+            const timePart = rest.join('_').trim();
+            if (!prefix || !timePart || timePart === 'current') return '';
+
+            let offsetMinutes = 0;
+            if (timePart.includes(':')) {
+              const [h, m] = timePart.split(':').map(x => Number(x.trim()));
+              offsetMinutes = h * 60 + m;
+            } else {
+              return '';
+            }
+
+            let baseTime;
+            if (prefix === 'pre') {
+              baseTime = new Date(startTimeStr);
+              const isPtichaWithMaatefet = templateName === 'פתיחה' && selectedTemplateNames.has('מעטפת');
+              const baseOffset = isPtichaWithMaatefet ? 105 : 60;
+              baseTime.setMinutes(baseTime.getMinutes() - baseOffset + offsetMinutes);
+            } else if (prefix === 'started') {
+              baseTime = new Date(startTimeStr);
+              baseTime.setMinutes(baseTime.getMinutes() + offsetMinutes);
+            } else if (prefix === 'ended') {
+              baseTime = new Date(endTimeStr);
+              baseTime.setMinutes(baseTime.getMinutes() + offsetMinutes);
+            } else {
+              return '';
+            }
+
+            const hours = String(baseTime.getHours()).padStart(2, '0');
+            const minutes = String(baseTime.getMinutes()).padStart(2, '0');
+            return `${hours}:${minutes}`;
+          }
+
+          // Add single-task add
+          document.getElementById('add-task-confirm').onclick = () => {
+            const desc = document.getElementById('new-desc').value.trim();
+            const stage = document.getElementById('new-stage').value;
+            const priority = document.getElementById('new-priority').value;
+            const manualTimeInput = document.getElementById('new-manual-time').value.trim();
+
+            if (!desc) return;
+
+            let manual_todo_time = parseManualTimeToFullISO(manualTimeInput, info.event.startStr);
+            let todo_time = '';
+            if (stage === 'פתיחה') todo_time = 'pre_00:00';
+            else if (stage === 'שוטף') todo_time = 'started_00:00';
+            else if (stage === 'סגירה') todo_time = 'ended_00:00';
+
+            if (!manual_todo_time) {
+              const calculatedTimeStr = getTaskExecutionTime(todo_time, info.event.startStr, info.event.endStr, '', new Set(), '');
+              manual_todo_time = parseManualTimeToFullISO(calculatedTimeStr, info.event.startStr);
+            }
+
+            storedTasks.push({ desc, stage, priority, source: 'manual', todo_time: manual_todo_time || todo_time, manual_todo_time });
+            renderTasks(storedTasks, info.event.startStr, info.event.endStr, selectedTemplateNames);
+
+            // reset inputs
+            document.getElementById('new-desc').value = '';
+            document.getElementById('new-manual-time').value = '';
+            document.getElementById('new-stage').value = 'פתיחה';
+            document.getElementById('new-priority').value = 'רגיל';
+            saveToServer();
+          };
+
+          // Employees for regular event
+          fetchJSON(`${BASE_URL}/get_employees`, {}, { retries: 1 })
+            .then(data => {
+              const employees = Array.isArray(data) ? data : (data.employees || []);
+              shiftContainer.innerHTML = '';
+              const shiftDropdownToggle = document.getElementById('shift-dropdown-toggle');
+              shiftDropdownToggle.onclick = () => {
+                shiftContainer.classList.toggle('hidden');
+              };
+              employees.forEach(emp => {
+                const label = document.createElement('label');
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.value = emp.name;
+                checkbox.checked = currentShift.includes(emp.name);
+                checkbox.addEventListener('change', () => {
+                  const checked = [...shiftContainer.querySelectorAll('input:checked')].map(c => c.value);
+                  currentShift = checked.length ? checked : ['none'];
+                  saveToServer();
+                });
+                label.appendChild(checkbox);
+                label.append(`${emp.name}`);
+                shiftContainer.appendChild(label);
+              });
+            })
+            .catch(e => showError(`get_employees failed: ${e.message}`));
+
+        }); // end get_templates then
+    }; // end handler
+  } // end handleEventClick
+
+  /* ---- Auto-login using cache ---- */
+  const cache = localStorage.getItem(AUTH_STORAGE_KEY);
+  let cached = null;
+  if (cache) { try { cached = JSON.parse(cache); } catch {} }
+  if (cached && cached.password && cached.expires && cached.expires > Date.now()) {
+    fetchJSON(`${BASE_URL}/admin_auth`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: cached.password })
+    }, { retries: 0 })
+    .then(data => {
+      if (data.ok) {
+        document.getElementById('login-modal').style.display = 'none';
+        AUTHENTICATED = true;
+        if (typeof startApp === 'function') startApp();
+      } else {
+        localStorage.removeItem(AUTH_STORAGE_KEY);
+      }
+    })
+    .catch(() => {
+      localStorage.removeItem(AUTH_STORAGE_KEY);
+    });
+    return; // don't show login modal while trying auto login
+  }
+
+  function tryLogin() {
+    const password = passwordInput.value.trim();
+    if (!password) {
+      loginError.textContent = 'נא להזין סיסמה';
+      loginError.style.display = 'block';
+      return;
+    }
+    fetchJSON(`${BASE_URL}/admin_auth`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password })
+    }, { retries: 0 })
+      .then(data => {
+        if (data.ok) {
+          localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({
+            password, expires: Date.now() + 10 * 60 * 1000
+          }));
+          loginModal.style.display = 'none';
+          AUTHENTICATED = true;
+          if (typeof startApp === 'function') startApp();
+        } else {
+          loginError.textContent = data.reason === 'Wrong password' ? 'סיסמה שגויה' : 'שגיאה לא ידועה';
+          loginError.style.display = 'block';
+          passwordInput.value = '';
+          localStorage.removeItem(AUTH_STORAGE_KEY);
+        }
+      })
+      .catch(() => {
+        loginError.textContent = 'שגיאת רשת';
+        loginError.style.display = 'block';
+        localStorage.removeItem(AUTH_STORAGE_KEY);
       });
-  };
+  }
 
-   // --- Auto-login using cache ---
-   const cache = localStorage.getItem(AUTH_STORAGE_KEY);
-   let cached = null;
-   if (cache) {
-     try { cached = JSON.parse(cache); } catch {}
-   }
-   if (cached && cached.password && cached.expires && cached.expires > Date.now()) {
-     fetch(`${BASE_URL}/admin_auth`, {
-       method: 'POST',
-       headers: { 'Content-Type': 'application/json' },
-       body: JSON.stringify({ password: cached.password })
-     })
-     .then(res => res.json())
-     .then(data => {
-       if (data.ok) {
-         loginModal.style.display = 'none';
-         AUTHENTICATED = true;
-         if (typeof startApp === 'function') startApp();
-       } else {
-         localStorage.removeItem(AUTH_STORAGE_KEY);
-         // show login modal as usual
-       }
-     })
-     .catch(() => {
-       localStorage.removeItem(AUTH_STORAGE_KEY);
-     });
-     return; // Don't show login modal while trying auto-login
-   }
-   // --- End auto-login logic ---
- 
-   function tryLogin() {
-     const password = passwordInput.value.trim();
-     if (!password) {
-       loginError.textContent = 'נא להזין סיסמה';
-       loginError.style.display = 'block';
-       return;
-     }
-     fetch(`${BASE_URL}/admin_auth`, {
-       method: 'POST',
-       headers: { 'Content-Type': 'application/json' },
-       body: JSON.stringify({ password })
-     })
-     .then(res => res.json())
-     .then(data => {
-       if (data.ok) {
-         // Cache for 10 minutes
-         localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({
-           password: password,
-           expires: Date.now() + 10 * 60 * 1000
-         }));
-         loginModal.style.display = 'none';
-         AUTHENTICATED = true;
-         if (typeof startApp === 'function') startApp();
-       } else {
-         loginError.textContent = data.reason === 'Wrong password' ? 'סיסמה שגויה' : 'שגיאה לא ידועה';
-         loginError.style.display = 'block';
-         passwordInput.value = '';
-         localStorage.removeItem(AUTH_STORAGE_KEY);
-       }
-     })
-     .catch(() => {
-       loginError.textContent = 'שגיאת רשת';
-       loginError.style.display = 'block';
-       localStorage.removeItem(AUTH_STORAGE_KEY);
-     });
-   }
- 
-   loginBtn.onclick = tryLogin;
-   passwordInput.addEventListener('keydown', function(e) {
-     if (e.key === 'Enter') tryLogin();
-   });
-
-
+  loginBtn.onclick = tryLogin;
+  passwordInput.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') tryLogin();
+  });
 });
-
