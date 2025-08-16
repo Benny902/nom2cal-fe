@@ -60,20 +60,31 @@ function getFormattedManualTime(manualTime) {
 // Build ISO from “HH:mm” + base date (YYYY-MM-DD) in Asia/Jerusalem
 function parseManualTimeToFullISO(hhmm, baseDateStr) {
   if (!hhmm || !/^\d{1,2}:\d{2}$/.test(hhmm)) return '';
-  try {
-    const [H, M] = hhmm.split(':').map(Number);
-    // baseDateStr can be ISO date or ISO datetime; get date portion
-    const dateOnly = (baseDateStr || '').substring(0, 10);
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateOnly)) return '';
-    // Construct a Date in the target tz by pretending local is that tz (works consistently in UI)
-    const d = new Date(`${dateOnly}T${String(H).padStart(2,'0')}:${String(M).padStart(2,'0')}:00`);
-    // Force to Asia/Jerusalem clock
-    const j = new Date(d.toLocaleString("en-US", { timeZone: "Asia/Jerusalem" }));
-    return j.toISOString();
-  } catch {
-    return '';
+  const [H, M] = hhmm.split(':').map(Number);
+  const dateOnly = (baseDateStr || '').substring(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateOnly)) return '';
+
+  // Determine the GMT offset for Asia/Jerusalem on that date
+  function offsetSuffixIL(isoDate) {
+    const probe = new Date(isoDate + 'T12:00:00Z'); // midday = avoid DST edges
+    const fmt = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Asia/Jerusalem',
+      timeZoneName: 'shortOffset',
+      year: 'numeric', month: '2-digit', day: '2-digit'
+    });
+    const tz = fmt.formatToParts(probe).find(p => p.type === 'timeZoneName')?.value || 'GMT+3';
+    const m = tz.match(/GMT([+-]\d{1,2})(?::(\d{2}))?/);
+    const sign = (m?.[1] || '+3').startsWith('-') ? '-' : '+';
+    const hh = String(Math.abs(parseInt(m?.[1] || '3', 10))).padStart(2, '0');
+    const mm = m?.[2] || '00';
+    return `${sign}${hh}:${mm}`;
   }
+
+  const off = offsetSuffixIL(dateOnly); // +02:00 or +03:00
+  const iso = `${dateOnly}T${String(H).padStart(2,'0')}:${String(M).padStart(2,'0')}:00${off}`;
+  return new Date(iso).toISOString();   // normalize to Z
 }
+
 
 function getTimeFromISO(isoStr) {
   const d = new Date(isoStr);
@@ -213,6 +224,7 @@ document.addEventListener('DOMContentLoaded', function () {
           locale: 'he',
           direction: 'rtl',
           height: 'auto',
+          timeZone: 'Asia/Jerusalem',
           scrollTime: scrollTime,
           slotMinTime: "08:00:00",
           slotMaxTime: "26:00:00",
@@ -651,6 +663,10 @@ document.addEventListener('DOMContentLoaded', function () {
           function saveToServer() {
             storedTasks = storedTasks.map(task => {
               if (task.source === 'template' && (!task.manual_todo_time || task.manual_todo_time === '')) {
+                // keep empty for "started_current" (only set when "אירוע התחיל")
+                if ((task.todo_time || '').trim() === 'started_current') {
+                  return task;
+                }
                 const execTimeStr = getTaskExecutionTime(
                   task.todo_time, info.event.startStr, info.event.endStr, task.template_name, selectedTemplateNames, ''
                 );
