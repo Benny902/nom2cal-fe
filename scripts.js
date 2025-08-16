@@ -1077,7 +1077,13 @@ document.addEventListener('DOMContentLoaded', function() {
       if (data.ok) {
         loginModal.style.display = 'none';
         AUTHENTICATED = true;
-        if (typeof startApp === 'function') startApp();
+        if (typeof startApp === 'function') {
+          startApp();
+          // Keep-alive ping every 2 minutes while the admin page is open
+          setInterval(() => {
+            fetch(`${BASE_URL}/health`, { mode: 'cors', cache: 'no-store' }).catch(() => {});
+          }, 120000);
+        }
       } else {
         localStorage.removeItem(AUTH_STORAGE_KEY);
         // show login modal as usual
@@ -1112,7 +1118,13 @@ document.addEventListener('DOMContentLoaded', function() {
         }));
         loginModal.style.display = 'none';
         AUTHENTICATED = true;
-        if (typeof startApp === 'function') startApp();
+        if (typeof startApp === 'function') {
+          startApp();
+          // Keep-alive ping every 2 minutes while the admin page is open
+          setInterval(() => {
+            fetch(`${BASE_URL}/health`, { mode: 'cors', cache: 'no-store' }).catch(() => {});
+          }, 120000);
+        }
       } else {
         loginError.textContent = data.reason === 'Wrong password' ? 'סיסמה שגויה' : 'שגיאה לא ידועה';
         loginError.style.display = 'block';

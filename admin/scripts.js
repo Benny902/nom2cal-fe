@@ -34,15 +34,41 @@ function showError(msg) {
 }
 
 // Retries + timeout to avoid “stuck” state on flaky network
-async function fetchJSON(url, options = {}, { timeoutMs = 15000, retries = 1 } = {}) {
+async function fetchJSON(
+  url,
+  options = {},
+  { timeoutMs = 15000, retries = 2, backoffMs = 600 } = {}
+) {
   const controller = new AbortController();
   const t = setTimeout(() => controller.abort(), timeoutMs);
+
+  // Enforce CORS mode and avoid cached intermediaries
+  const opts = {
+    mode: 'cors',
+    cache: 'no-store',
+    credentials: 'omit',
+    ...options,
+    signal: controller.signal
+  };
+
   try {
-    const res = await fetch(url, { ...options, signal: controller.signal });
-    if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+    const res = await fetch(url, opts);
+    if (!res.ok) {
+      // surface status text but still try retries on gateway-ish failures
+      const isGatewayish = res.status === 502 || res.status === 503 || res.status === 504;
+      if (retries > 0 && isGatewayish) {
+        await new Promise(r => setTimeout(r, backoffMs));
+        return fetchJSON(url, options, { timeoutMs, retries: retries - 1, backoffMs: backoffMs * 2 });
+      }
+      throw new Error(`${res.status} ${res.statusText}`);
+    }
     return await res.json();
   } catch (e) {
-    if (retries > 0) return fetchJSON(url, options, { timeoutMs, retries: retries - 1 });
+    // retry network/CORS/abort errors
+    if (retries > 0) {
+      await new Promise(r => setTimeout(r, backoffMs));
+      return fetchJSON(url, options, { timeoutMs, retries: retries - 1, backoffMs: backoffMs * 2 });
+    }
     throw e;
   } finally {
     clearTimeout(t);
@@ -1046,7 +1072,13 @@ document.addEventListener('DOMContentLoaded', function () {
       if (data.ok) {
         document.getElementById('login-modal').style.display = 'none';
         AUTHENTICATED = true;
-        if (typeof startApp === 'function') startApp();
+        if (typeof startApp === 'function') {
+          startApp();
+          // Keep-alive ping every 2 minutes while the admin page is open
+          setInterval(() => {
+            fetch(`${BASE_URL}/health`, { mode: 'cors', cache: 'no-store' }).catch(() => {});
+          }, 120000);
+        }
       } else {
         localStorage.removeItem(AUTH_STORAGE_KEY);
       }
@@ -1076,7 +1108,13 @@ document.addEventListener('DOMContentLoaded', function () {
           }));
           loginModal.style.display = 'none';
           AUTHENTICATED = true;
-          if (typeof startApp === 'function') startApp();
+          if (typeof startApp === 'function') {
+            startApp();
+            // Keep-alive ping every 2 minutes while the admin page is open
+            setInterval(() => {
+              fetch(`${BASE_URL}/health`, { mode: 'cors', cache: 'no-store' }).catch(() => {});
+            }, 120000);
+          }
         } else {
           loginError.textContent = data.reason === 'Wrong password' ? 'סיסמה שגויה' : 'שגיאה לא ידועה';
           loginError.style.display = 'block';
@@ -1096,3 +1134,9 @@ document.addEventListener('DOMContentLoaded', function () {
     if (e.key === 'Enter') tryLogin();
   });
 });
+
+
+// Keep-alive ping every 2 minutes while the admin page is open
+setInterval(() => {
+  fetch(`${BASE_URL}/health`, { mode: 'cors', cache: 'no-store' }).catch(() => {});
+}, 120000);
